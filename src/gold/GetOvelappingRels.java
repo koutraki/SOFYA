@@ -113,14 +113,15 @@ public class GetOvelappingRels {
 	
 	 public static void main(String[] args) throws Exception{
 		 
-		 String dir="/Users/adi/Dropbox/DBP/feb-sofya/dbp/";
-		 String tmpDir="/Users/adi/Dropbox/DBP/";
+		// String dir="/Users/mary/Dropbox/feb-sofya/";//"/Users/adi/Dropbox/DBP/feb-sofya/dbpedia/";
+		 String dir="/feb-sofya/";
+		 String tmpDir=".";//"/Users/adi/Dropbox/DBP/";
 		 
 		 KB source=new KB("dbpedia", "http://s6.adam.uvsq.fr:8891/sparql" ,  "http://dbpedia.org");
 		 KB target=new KB("yago", "http://s6.adam.uvsq.fr:8891/sparql" ,  "http://yago-knowledge.org");
 			
 		 
-		 String fileWithRelations=dir+source.name+"_functionality_ee.txt";
+		 String fileWithRelations=dir+source.name+"/"+source.name+"_functionality_ee.txt";
  		 ArrayList<Relation> relations= loadRelationsFromFilesWithFunctionality(fileWithRelations, true, 0, 4, 5);
  			
  		 
