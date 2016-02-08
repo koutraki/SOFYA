@@ -2,9 +2,10 @@ package config;
 
 public class Configuration {
 
-	//test
-	//mary
+	/*VIRTUOSO*/
+	/*graph name can take the values, "yago" or "dbpedia" or "freebase"*/
+	static final String graph="yago"; 
+	static final String endpoint="http://s6.adam.uvsq.fr:8891/sparql";
 	
-	int n;
-	int y;
+	public static final String separatorSpace="\\s+";
 }
