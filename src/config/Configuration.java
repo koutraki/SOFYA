@@ -5,5 +5,6 @@ public class Configuration {
 	//test
 	//mary
 	
-	//plus here not even java works... 
+	int n;
+	int y;
 }
