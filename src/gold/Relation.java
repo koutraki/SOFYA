@@ -20,6 +20,11 @@ public class Relation {
 			this.invFunct=invFunct;
 		}
 		
+		public  Relation(String uri, boolean isDirect) throws Exception {
+			this.uri=uri;
+			this.isDirect=isDirect;
+		}
+		
 		@Override
 		public boolean equals(Object o){
 			Relation r=(Relation)o;
@@ -33,8 +38,13 @@ public class Relation {
 			
 		}
 
-		
 		public String toString(){
+			return uri+((isDirect)?"":"-");
+		}
+		
+		public String toStringFull(){
 			return uri+((isDirect)?"":"-")+"  funct="+df.format(funct)+" invFunct="+df.format(invFunct);
 		}
+		
+		
 }

@@ -8,12 +8,16 @@ import java.io.FileOutputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 
 import com.hp.hpl.jena.query.QuerySolution;
 import com.hp.hpl.jena.query.ResultSet;
 import com.hp.hpl.jena.rdf.model.RDFNode;
 import com.hp.hpl.jena.sparql.engine.http.QueryEngineHTTP;
+
+
+
 
 public class GetOvelappingRels {
 
@@ -38,7 +42,6 @@ public class GetOvelappingRels {
 			pairReader.readLine();
 
 		ArrayList<Relation> list = new ArrayList<Relation>();
-		;
 		String line = null;
 		while ((line = pairReader.readLine()) != null) {
 			if (line.isEmpty())
@@ -63,23 +66,15 @@ public class GetOvelappingRels {
 	}
 
 	/****************************************************************************/
-
 	/** EXTRACT ALL PAIRS R(X,Y) FOR A GIVEN R **/
 	/****************************************************************************/
-	public static final void twoStepExtraction(Relation r, KB kb, String prefixTarget, String fileWithSubjects,
-			String fileWithPairs) throws Exception {
-		// extractSubjects(r, kb, prefixTarget, fileWithSubjects);
-		extractPairs(r, kb, prefixTarget, fileWithPairs);
-		// extractPairsForSubjects(r, kb, fileWithSubjects, fileWithPairs);
-	}
-
 	public static final void extractPairs(Relation r, KB kb, String prefixTarget, String fileWithPairs)
 			throws Exception {
 
 		System.out.println("Extract pairs for " + r);
 
-		String querystr = "  PREFIX owl: <http://www.w3.org/2002/07/owl#>  "
-				+ "\n select distinct ?x2 ?y2 where {graph <" + kb.name + "> {\n";
+		String querystr = "  PREFIX owl: <http://www.w3.org/2002/07/owl#> \n"
+				+ "select distinct ?x2 ?y2 where {graph <" + kb.name + "> {\n";
 		querystr += (r.isDirect) ? "?x  <" + r.uri + "> ?y. \n" : "?y <" + r.uri + "> ?x. \n";
 		querystr += "?x  owl:sameAs ?x2. \n";
 		querystr += "FILTER ( strstarts(str(?x2), \"" + prefixTarget + "\") ).\n";
@@ -98,44 +93,415 @@ public class GetOvelappingRels {
 		if (rst != null) {
 			while (rst.hasNext()) {
 				QuerySolution qs = rst.next();
-
 				RDFNode x2 = (RDFNode) qs.get("?x2");
-
 				RDFNode y2 = (RDFNode) qs.get("?y2");
-
 				// System.out.println(x2);
 				writer.write(x2 + "\t" + y2 + " \n");
 			}
-
 			writer.close();
-
 			System.out.println("				.... finished extracting pairs for " + r);
 		}else{
 			System.err.println("				.... No results for " + r);
 		}
 	}
+	
+	/**************************************************************************************************************/
+	/** FOR THE PAIRS OF A RELATION,  FIND OVERLAPPING RELATIONS IN THE TARGET **/
+	/**************************************************************************************************************/
+	public static final HashMap<Relation,  Alignment>  iterateAndComputeSharedPairs(int tuplesPerQuery, String fileWithPairs,   KB target, String prefixAtSource) throws Exception{
+		IteratorFromFile it= new IteratorFromFile();
+	
+		HashMap<Relation,  Alignment> relationsAtOther=new HashMap<Relation,  Alignment>();
+		ArrayList<String> lines=null;
+		
+		int totalPairs=0;
+		it.init(fileWithPairs);
+		while((lines=it.getNextLines(tuplesPerQuery))!=null){
+			System.out.print("+");
+			totalPairs+=lines.size();
+			/** overlap **/
+			HashMap<Relation,  Integer> overlapp=getSharedForGroupOfPairs(target, lines);
+			for(Relation r:overlapp.keySet()){
+				Alignment struct=relationsAtOther.get(r);
+				if(struct==null) {
+					struct=new Alignment(0);
+					relationsAtOther.put(r, struct);
+				}
+				struct.sharedXY+=overlapp.get(r);	
+			}
+			
+		}
+		it.close();
+		
+		/** set the total number of pairs translated to the target **/
+		for(Relation rel:relationsAtOther.keySet()){
+			Alignment struct=relationsAtOther.get(rel);
+			struct.originalSamples=totalPairs;
+		}		
+		System.out.println(" ");
+		return  relationsAtOther;
+	}
+	
+	
+	public static final HashMap<Relation,  Integer> getSharedForGroupOfPairs(KB target, ArrayList<String> lines) throws Exception{
+		 HashMap<Relation,  Integer> overlapp=new HashMap<Relation,  Integer> ();
+		 
+		 String querystr= "select ?r ?d  (COUNT(*) as ?n)   where {graph <" + target.name + "> {\n";
+		 querystr+=" values (?x ?y) {\n";
+		 		for(String line:lines){
+		 				line=line.trim();
+		 				String[] parts=line.split(separatorSpace);
+		 				querystr+="\t (  "+"<"+parts[0]+">  "+"  <"+parts[1]+">"+" ) \n";
+			}
+			querystr+="\t}\n";
+			querystr+= getSubQueryForDirection(true);
+			querystr+=" UNION \n";
+			querystr+= getSubQueryForDirection(false);
+			querystr+="}} group by ?r ?d  ";
+			
+			//System.out.println("Relations with overlapp "+querystr);
+			
+			QueryEngineHTTP query = new QueryEngineHTTP(target.endpoint, querystr);
+			ResultSet rst = query.execSelect();
+			if (rst != null) {
+				while (rst.hasNext()) {
+					QuerySolution qs = rst.next();
+					
+					String n= qs.get("?n").asLiteral().getString().trim();
+					int sharedXY=Integer.valueOf(n);
+					if(sharedXY==0) continue;
+					
+					RDFNode r = (RDFNode) qs.get("?r");
+					String d = qs.get("?d").asLiteral().getString().trim();
+					boolean dir=(d.equals("direct"))?true:false;
+					Relation rel=new Relation(r.toString(), dir);
+					overlapp.put(rel, new Integer(sharedXY));
+				}
+			}else{
+				
+			}	
+		 return overlapp;
+	}
+	
+	public static final String getSubQueryForDirection(boolean direction){
+		String query=" ";
+		query+=" {select ?x ?r ?y ?d where { ";
+				query+=" values  ?d { ";
+				query+=(direction)?" \"direct\" ":" \"indirect\" ";
+				query+= " } ";
+				query+= (direction)?" ?x ?r ?y. ":" ?y ?r ?x. ";
+				query+="}} \n";
+		return query;		
+	}
+	
+	
+	/********************************/
+	/** PCA Denominator **/
+	/*******************************/
+	/****   V1 ***/
+	public static final HashMap<Relation,  Alignment>  iterateAndComputePCADenominator_V1(int tuplesPerQuery, String fileWithPairs,   KB target, String prefixAtSource, HashMap<Relation,  Alignment> relationsAtOther) throws Exception{
+		IteratorFromFile it= new IteratorFromFile();
+		ArrayList<String> lines=null;
+		
+		/** process the file again in order to extract the PCA denominator **/
+		it.init(fileWithPairs);
+		while((lines=it.getNextLines(tuplesPerQuery))!=null){	
+			System.out.print("-");
+			/** PCA direct**/
+			HashMap<Relation,  Integer> denominator=getPCADenominatorForGroupOfPairs_V1(lines, target, prefixAtSource, false);
+			for(Relation r:denominator.keySet()){
+				Alignment struct=relationsAtOther.get(r);
+				if(struct==null) continue;
+				struct.pcaDenominatorSourceToTarget+=denominator.get(r);
+			}
+			
+			/** PCA direct with counterpart **/
+		   HashMap<Relation,  Integer> denominatorWithCounterPart=getPCADenominatorForGroupOfPairs_V1(lines, target, prefixAtSource, true);
+			for(Relation r:denominatorWithCounterPart.keySet()){
+				Alignment struct=relationsAtOther.get(r);
+				if(struct==null) continue;
+				struct.pcaDenominatorSourceToTargetWithCounterPartForObject+=denominatorWithCounterPart.get(r);
+			}
+		}
+		it.close();
+		
+		System.out.println(" ");
+		return  relationsAtOther;
+	}
+	
+	public static final  HashMap<Relation,  Integer>  getPCADenominatorForGroupOfPairs_V1(ArrayList<String> lines, KB target, String prefixAtSource, boolean checkCounterpartForExistentialObject) throws Exception{
+		 HashMap<Relation,  Integer> denominator=new HashMap<Relation,  Integer> ();
+		 String querystr= " PREFIX owl: <http://www.w3.org/2002/07/owl#> \n"
+								+  "select ?r ?d  (COUNT(?x) as ?n)   where {graph <" + target.name + "> {\n";
+			querystr+=" values ?x {\n";
+						for(String line:lines){
+									line=line.trim();
+									String[] parts=line.split(separatorSpace);
+									querystr+="\t   "+"<"+parts[0]+">  \n";
+								}
+			querystr+="\t}\n";
+			
+			querystr+=(checkCounterpartForExistentialObject) ?  getExistentialSubQueryForDirectionWithCheckOfCounterpartForObject_V1(true, target, prefixAtSource): getExistentialSubQueryForDirection_V1(true, target);
+			querystr+=" UNION \n";
+			querystr+=(checkCounterpartForExistentialObject) ? getExistentialSubQueryForDirectionWithCheckOfCounterpartForObject_V1(false, target, prefixAtSource): getExistentialSubQueryForDirection_V1(false, target);
+			querystr+="}} group by ?r ?d  ";
+			//if (checkCounterpartForExistentialObject) System.out.println("Q Denominator: "+querystr);
+			QueryEngineHTTP query = new QueryEngineHTTP(target.endpoint, querystr);
+			ResultSet rst = query.execSelect();
+			if (rst != null) {
+				while (rst.hasNext()) {
+					QuerySolution qs = rst.next();
+					String n= qs.get("?n").asLiteral().getString().trim();
+					int XYs=Integer.valueOf(n);
+					if(XYs==0) continue;
+					
+					RDFNode r = (RDFNode) qs.get("?r");
+					String d = qs.get("?d").asLiteral().getString().trim();
+					boolean dir=(d.equals("direct"))?true:false;
+					Relation rel=new Relation(r.toString(), dir);
+					denominator.put(rel, new Integer(XYs));
+				}
+			}
+	    System.out.print("*");
+		return denominator;
+	}
+	
+	
+	public static final String getExistentialSubQueryForDirection_V1(boolean direction, KB target){
+						String query=" ";
+						query+=" { select distinct ?x ?r ?d where { ";
+						query+=" values  ?d { ";
+						query+=(direction)?" \"direct\" ":" \"indirect\" ";
+						query+= " } ";
+						query+= ((direction)?" { ?x ?r ?y } ":" { ?y ?r ?x } ");
+						query+=" }} \n";
+		return query;		
+	}
+	
+	
+	public static final String getExistentialSubQueryForDirectionWithCheckOfCounterpartForObject_V1(boolean direction, KB target, String prefixAtOther){
+		String query=" ";
+		query+=" { select distinct ?x ?r ?d where { ";
+		query+=" values  ?d { ";
+		query+=(direction)?" \"direct\" ":" \"indirect\" ";
+		query+= " } ";
+		query+= ((direction)?" { ?x ?r ?y } ":" { ?y ?r ?x } ");
+		query+=" ?y owl:sameAs ?y2. ";
+		//query += " FILTER (strstarts(str(?y2), \"" + prefixAtOther + "\") ). ";
+		query+=" }} \n";
+		return query;		
+	}
 
-	public static void main(String[] args) throws Exception {
 
+	/****   V2 ***/
+	public static final HashMap<Relation,  Alignment>  iterateAndComputePCADenominator_V2(int tuplesPerQuery, String fileWithPairs,   KB target, String prefixAtSource, HashMap<Relation,  Alignment> relationsAtOther) throws Exception{
+		IteratorFromFile it= new IteratorFromFile();
+		ArrayList<String> lines=null;
+		
+		/** process the file again in order to extract the PCA denominator **/
+		it.init(fileWithPairs);
+		while((lines=it.getNextLines(tuplesPerQuery))!=null){	
+			System.out.print("-");
+			/** PCA direct**/
+			HashMap<Relation,  Integer> denominator=getPCADenominatorForGroupOfPairs_V1(lines, target, prefixAtSource, false);
+			for(Relation r:denominator.keySet()){
+				Alignment struct=relationsAtOther.get(r);
+				if(struct==null) continue;
+				struct.pcaDenominatorSourceToTarget+=denominator.get(r);
+			}
+			
+			/** PCA direct with counterpart **/
+		   HashMap<Relation,  Integer> denominatorWithCounterPart=getPCADenominatorForGroupOfPairs_V1(lines, target, prefixAtSource, true);
+			for(Relation r:denominatorWithCounterPart.keySet()){
+				Alignment struct=relationsAtOther.get(r);
+				if(struct==null) continue;
+				struct.pcaDenominatorSourceToTargetWithCounterPartForObject+=denominatorWithCounterPart.get(r);
+			}
+		}
+		it.close();
+		
+		System.out.println(" ");
+		return  relationsAtOther;
+	}
+	
+	public static final  HashMap<Relation,  Integer>  getPCADenominatorForGroupOfPairs_V2(ArrayList<String> lines, Collection<Relation> relationsDirect, Collection<Relation> relationsInv, KB target, String prefixAtSource, boolean checkCounterpartForExistentialObject) throws Exception{
+		 HashMap<Relation,  Integer> denominator=new HashMap<Relation,  Integer> ();
+		 String querystr= " PREFIX owl: <http://www.w3.org/2002/07/owl#> \n"
+								+  "select ?r ?d  (COUNT(?x) as ?n)   where {graph <" + target.name + "> {\n";
+			querystr+=" values ?x {\n";
+						for(String line:lines){
+									line=line.trim();
+									String[] parts=line.split(separatorSpace);
+									querystr+="\t   "+"<"+parts[0]+">  \n";
+								}
+			querystr+="\t}\n";
+			
+			if(relationsDirect!=null) querystr+=(checkCounterpartForExistentialObject) ?  getExistentialSubQueryForDirectionWithCheckOfCounterpartForObject_V1(true, target, prefixAtSource): getExistentialSubQueryForDirection_V2(true, target, relationsDirect);
+			if(relationsDirect!=null && relationsInv!=null) querystr+=" UNION \n";
+			if(relationsInv!=null) querystr+=(checkCounterpartForExistentialObject) ? getExistentialSubQueryForDirectionWithCheckOfCounterpartForObject_V1(false, target, prefixAtSource): getExistentialSubQueryForDirection_V2(false, target, relationsInv);
+			querystr+="}} group by ?r ?d  ";
+			//if (checkCounterpartForExistentialObject) System.out.println("Q Denominator: "+querystr);
+			QueryEngineHTTP query = new QueryEngineHTTP(target.endpoint, querystr);
+			ResultSet rst = query.execSelect();
+			if (rst != null) {
+				while (rst.hasNext()) {
+					QuerySolution qs = rst.next();
+					String n= qs.get("?n").asLiteral().getString().trim();
+					int XYs=Integer.valueOf(n);
+					if(XYs==0) continue;
+					
+					RDFNode r = (RDFNode) qs.get("?r");
+					String d = qs.get("?d").asLiteral().getString().trim();
+					boolean dir=(d.equals("direct"))?true:false;
+					Relation rel=new Relation(r.toString(), dir);
+					denominator.put(rel, new Integer(XYs));
+				}
+			}
+	    System.out.print("*");
+		return denominator;
+	}
+	
+	public static final String getExistentialSubQueryForDirection_V2(boolean direction, KB target, Collection<Relation> relations){
+		String query=" ";
+		query+=" { select distinct ?x ?r ?d where { ";
+		query+=" values  ?d { ";
+		query+=(direction)?" \"direct\" ":" \"indirect\" ";
+		query+= " } ";
+		
+		query+=" values  ?r { ";
+		for(Relation r: relations){
+			if(r.isDirect==direction) 	query+="  <"+r.uri+"> ";
+		}
+		query+= " } ";
+		
+		query+= ((direction)?" { ?x ?r ?y } ":" { ?y ?r ?x } ");
+		query+=" }} \n";
+        return query;		
+	}
+	
+	public static final String getExistentialSubQueryForDirectionWithCheckOfCounterpartForObject_V2(boolean direction, KB target, Collection<Relation> relations){
+		String query=" ";
+		query+=" { select distinct ?x ?r ?d where { ";
+		query+=" values  ?d { ";
+		query+=(direction)?" \"direct\" ":" \"indirect\" ";
+		query+= " } ";
+		
+		query+=" values  ?r { ";
+		for(Relation r: relations){
+			if(r.isDirect==direction) 	query+="  <"+r.uri+"> ";
+		}
+		query+= " } ";
+		
+		query+= ((direction)?" { ?x ?r ?y } ":" { ?y ?r ?x } ");
+		query+=" ?y owl:sameAs ?y2. ";
+		//query += " FILTER (strstarts(str(?y2), \"" + prefixAtOther + "\") ). ";
+		query+=" }} \n";
+		return query;		
+	}
+
+	
+	/*****************************************************************/
+	/**  Alignment Class**/
+	/*****************************************************************/
+	public static class  Alignment{
+		public int sharedXY=0;
+		public int originalSamples=0;
+		public int subjectsAtTarget=0;
+		public int pcaDenominatorSourceToTarget=0;
+		public int pcaDenominatorSourceToTargetWithCounterPartForObject=0;
+		
+		public Alignment(int originalSamples){
+			this.originalSamples=originalSamples;
+		}
+	}
+	
+	/*************************************/
+	/** test**/
+	/**************************************/
+	public static final void test(KB kb){
+		String queryStr = "select ?r ?d  (COUNT(?x) as ?n)   where {graph <"+kb.name+"> {\n"
+			+" values (?x ?y) {\n"
+			+	" (  <http://yago-knowledge.org/resource/M?el_Sechnaill_mac_Domnaill>    <http://yago-knowledge.org/resource/Armagh> ) \n"
+			+	" (  <http://yago-knowledge.org/resource/?ed_Findliath>    <http://yago-knowledge.org/resource/Armagh> ) \n"
+			+	" (  <http://yago-knowledge.org/resource/Shuja-ud-Daula>    <http://yago-knowledge.org/resource/Gulab_Bari> ) \n"
+			+	" (  <http://yago-knowledge.org/resource/Ibrahim_Lodi>    <http://yago-knowledge.org/resource/Panipat> )\n"
+			+	" (  <http://yago-knowledge.org/resource/Hugh_O'Neill,_Earl_of_Tyrone>    <http://yago-knowledge.org/resource/San_Pietro_in_Montorio> )\n" 
+			+	" (  <http://yago-knowledge.org/resource/Jayanegara>    <http://yago-knowledge.org/resource/Trowulan> ) \n"
+			+	" (  <http://yago-knowledge.org/resource/Mahbub_Ali_Khan,_Asaf_Jah_VI>    <http://yago-knowledge.org/resource/India> ) \n"
+			+	" (  <http://yago-knowledge.org/resource/Osman_Ali_Khan,_Asaf_Jah_VII>    <http://yago-knowledge.org/resource/India> ) \n"
+			+	" (  <http://yago-knowledge.org/resource/Mir_Akbar_Ali_Khan_Sikander_Jah,_Asaf_Jah_III>    <http://yago-knowledge.org/resource/India> )\n" 
+			+	" (  <http://yago-knowledge.org/resource/Alauddin_Khilji>    <http://yago-knowledge.org/resource/India> )\n"
+			+	"}\n"
+			+"{   select distinct ?x ?r ?y ?d where {  values  ?d {  \"direct\"  }  ?x ?r ?y2.  }} "
+			+" UNION \n"
+			+" {   select distinct ?x ?r ?y ?d where {  values  ?d {  \"indirect\"  }  ?y2 ?r ?x. }} "
+			+"}} group by ?r ?d  ";
+		
+		System.out.println(queryStr);
+		
+		QueryEngineHTTP query = new QueryEngineHTTP(kb.endpoint, queryStr);
+		ResultSet rst = query.execSelect();
+		if (rst != null) {
+			System.out.println(" Iterator ");
+			while (rst.hasNext()) {
+				
+				QuerySolution qs = rst.next();
+				
+				RDFNode r= (RDFNode) qs.get("?r");
+				System.out.println(" Extract "+r);
+			}}
+		else {
+			System.out.println("No results ");
+		}
+	}
+	
+	public static void main(String[] args) throws Exception {	
 		// String
 		// dir="/Users/mary/Dropbox/feb-sofya/";//"/Users/adi/Dropbox/DBP/feb-sofya/dbpedia/";
-		String dir = "feb-sofya/";
-		String tmpDir = "tmpDir";// "/Users/adi/Dropbox/DBP/";
+		String dir ="/Users/adi/Dropbox/DBP/feb-sofya/"; //"feb-sofya/";
+		String tmpDir ="/Users/adi/Dropbox/DBP/"; //"tmpDir";// 
 
 		KB source = new KB("dbpedia", "http://s6.adam.uvsq.fr:8891/sparql", "http://dbpedia.org");
 		KB target = new KB("yago", "http://s6.adam.uvsq.fr:8891/sparql", "http://yago-knowledge.org");
-
+		
+		//test(target);
+	    //System.exit(0);
+	
 		String fileWithRelations = dir + source.name + "/" + source.name + "_functionality_ee.txt";
 		ArrayList<Relation> relations = loadRelationsFromFilesWithFunctionality(fileWithRelations, true, 0, 4, 5);
 
-		String fileWithSubjects = tmpDir + "subjects.txt";
 		String fileWithPairs = tmpDir + "pairs.txt";
+		String fileWithAlignements =  tmpDir +source.name+"_"+target.name+"_align_2.txt";
 		int tuplesPerQuery = 500;
+		
+		BufferedWriter writer = new BufferedWriter(
+				new OutputStreamWriter(new FileOutputStream(fileWithAlignements), "UTF-8"));
+	
+		String header="source target sharedXY originalXY pcaDenRelDirect pcaDenRelDirectCheckCounterpartForObject ";
+		System.out.println(header);
 		for (Relation r : relations) {
 			System.out.println(r);
-			twoStepExtraction(r, source, target.resourcesDomain, fileWithSubjects, fileWithPairs);
+			extractPairs(r, source, target.resourcesDomain,  fileWithPairs);
+			HashMap<Relation,  Alignment> relationsAtOther=iterateAndComputeSharedPairs(tuplesPerQuery, fileWithPairs,  target, source.resourcesDomain);
+			iterateAndComputePCADenominator_V1(tuplesPerQuery, fileWithPairs, target, source.resourcesDomain, relationsAtOther);
+			
+			boolean hasSolutions=false;
+			for(Relation rO:relationsAtOther.keySet()){
+				Alignment struct=relationsAtOther.get(rO);
+				String line=r+" "+rO+" "+struct.sharedXY+" "+struct.originalSamples+" "+struct.pcaDenominatorSourceToTarget+" "+struct.pcaDenominatorSourceToTargetWithCounterPartForObject;
+				System.out.println(line);
+				writer.write(line+"\n");
+				hasSolutions=true;
+				writer.flush();
+			}
+			if(hasSolutions) {
+				System.out.println();
+				writer.write("\n");
+				writer.flush();
+			}
 
 		}
+		writer.close();
 
 	}
 }
