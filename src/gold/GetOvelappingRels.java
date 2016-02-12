@@ -294,16 +294,35 @@ public class GetOvelappingRels {
 
 
 	/****   V2 ***/
-	public static final HashMap<Relation,  Alignment>  iterateAndComputePCADenominator_V2(int tuplesPerQuery, String fileWithPairs,   KB target, String prefixAtSource, HashMap<Relation,  Alignment> relationsAtOther) throws Exception{
+	public static final  void  iterateAndComputePCADenominator_V2(int tuplesPerQuery, String fileWithPairs,   KB target, String prefixAtSource, HashMap<Relation,  Alignment> relationsAtOther) throws Exception{
 		IteratorFromFile it= new IteratorFromFile();
 		ArrayList<String> lines=null;
 		
+		/** split the relations at target into direct and inverse **/
+		ArrayList<Relation> direct=null;
+		for(Relation r: relationsAtOther.keySet()){
+			if(r.isDirect==true){
+				if(direct==null) direct= new ArrayList<Relation>();
+				direct.add(r);
+			}
+		}
+ 		
+		ArrayList<Relation> inverse=null;
+		for(Relation r: relationsAtOther.keySet()){
+			if(r.isDirect==false){
+				if(inverse==null) inverse= new ArrayList<Relation>();
+				inverse.add(r);
+			}
+		}
+	
+
 		/** process the file again in order to extract the PCA denominator **/
 		it.init(fileWithPairs);
 		while((lines=it.getNextLines(tuplesPerQuery))!=null){	
 			System.out.print("-");
 			/** PCA direct**/
-			HashMap<Relation,  Integer> denominator=getPCADenominatorForGroupOfPairs_V1(lines, target, prefixAtSource, false);
+			//System.out.println(" PCA Direct ");
+			HashMap<Relation,  Integer> denominator=getPCADenominatorForGroupOfPairs_V2(lines, direct, inverse, target, prefixAtSource, false);
 			for(Relation r:denominator.keySet()){
 				Alignment struct=relationsAtOther.get(r);
 				if(struct==null) continue;
@@ -311,7 +330,8 @@ public class GetOvelappingRels {
 			}
 			
 			/** PCA direct with counterpart **/
-		   HashMap<Relation,  Integer> denominatorWithCounterPart=getPCADenominatorForGroupOfPairs_V1(lines, target, prefixAtSource, true);
+			//System.out.println(" PCA Direct Counterpart");
+		   HashMap<Relation,  Integer> denominatorWithCounterPart=getPCADenominatorForGroupOfPairs_V2(lines, direct, inverse, target, prefixAtSource, true);
 			for(Relation r:denominatorWithCounterPart.keySet()){
 				Alignment struct=relationsAtOther.get(r);
 				if(struct==null) continue;
@@ -321,7 +341,7 @@ public class GetOvelappingRels {
 		it.close();
 		
 		System.out.println(" ");
-		return  relationsAtOther;
+		
 	}
 	
 	public static final  HashMap<Relation,  Integer>  getPCADenominatorForGroupOfPairs_V2(ArrayList<String> lines, Collection<Relation> relationsDirect, Collection<Relation> relationsInv, KB target, String prefixAtSource, boolean checkCounterpartForExistentialObject) throws Exception{
@@ -336,11 +356,14 @@ public class GetOvelappingRels {
 								}
 			querystr+="\t}\n";
 			
-			if(relationsDirect!=null) querystr+=(checkCounterpartForExistentialObject) ?  getExistentialSubQueryForDirectionWithCheckOfCounterpartForObject_V1(true, target, prefixAtSource): getExistentialSubQueryForDirection_V2(true, target, relationsDirect);
+			if(relationsDirect!=null) querystr+=(checkCounterpartForExistentialObject) ?  getExistentialSubQueryForDirectionWithCheckOfCounterpartForObject_V2(true, target, relationsDirect): getExistentialSubQueryForDirection_V2(true, target, relationsDirect);
 			if(relationsDirect!=null && relationsInv!=null) querystr+=" UNION \n";
-			if(relationsInv!=null) querystr+=(checkCounterpartForExistentialObject) ? getExistentialSubQueryForDirectionWithCheckOfCounterpartForObject_V1(false, target, prefixAtSource): getExistentialSubQueryForDirection_V2(false, target, relationsInv);
+			if(relationsInv!=null) querystr+=(checkCounterpartForExistentialObject) ? getExistentialSubQueryForDirectionWithCheckOfCounterpartForObject_V2(false, target, relationsInv): getExistentialSubQueryForDirection_V2(false, target, relationsInv);
 			querystr+="}} group by ?r ?d  ";
-			//if (checkCounterpartForExistentialObject) System.out.println("Q Denominator: "+querystr);
+			
+			
+			//System.out.println("Q Denominator: \n"+querystr);
+			
 			QueryEngineHTTP query = new QueryEngineHTTP(target.endpoint, querystr);
 			ResultSet rst = query.execSelect();
 			if (rst != null) {
@@ -482,8 +505,9 @@ public class GetOvelappingRels {
 		for (Relation r : relations) {
 			System.out.println(r);
 			extractPairs(r, source, target.resourcesDomain,  fileWithPairs);
-			HashMap<Relation,  Alignment> relationsAtOther=iterateAndComputeSharedPairs(tuplesPerQuery, fileWithPairs,  target, source.resourcesDomain);
-			iterateAndComputePCADenominator_V1(tuplesPerQuery, fileWithPairs, target, source.resourcesDomain, relationsAtOther);
+			HashMap<Relation,  Alignment> relationsAtOther=iterateAndComputeSharedPairs(2*tuplesPerQuery, fileWithPairs,  target, source.resourcesDomain);
+			if(relationsAtOther.keySet().isEmpty()) continue;
+			iterateAndComputePCADenominator_V2(tuplesPerQuery, fileWithPairs, target, source.resourcesDomain, relationsAtOther);
 			
 			boolean hasSolutions=false;
 			for(Relation rO:relationsAtOther.keySet()){
