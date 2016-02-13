@@ -108,7 +108,7 @@ public class GetOvelappingRels {
 	/**************************************************************************************************************/
 	/** FOR THE PAIRS OF A RELATION,  FIND OVERLAPPING RELATIONS IN THE TARGET **/
 	/**************************************************************************************************************/
-	public static final HashMap<Relation,  Alignment>  iterateAndComputeSharedPairs(int tuplesPerQuery, String fileWithPairs,   KB target, String prefixAtSource) throws Exception{
+	public static final HashMap<Relation,  Alignment>  iterateAndComputeSharedPairs(int tuplesPerQuery, String fileWithPairs,   KB target) throws Exception{
 		IteratorFromFile it= new IteratorFromFile();
 	
 		HashMap<Relation,  Alignment> relationsAtOther=new HashMap<Relation,  Alignment>();
@@ -120,7 +120,7 @@ public class GetOvelappingRels {
 			System.out.print("+");
 			totalPairs+=lines.size();
 			/** overlap **/
-			HashMap<Relation,  Integer> overlapp=getSharedForGroupOfPairs(target, lines);
+			HashMap<Relation,  Integer> overlapp= getSharedForGroupOfPairs(target, lines); //testShared(target, lines); 
 			for(Relation r:overlapp.keySet()){
 				Alignment struct=relationsAtOther.get(r);
 				if(struct==null) {
@@ -146,7 +146,8 @@ public class GetOvelappingRels {
 	public static final HashMap<Relation,  Integer> getSharedForGroupOfPairs(KB target, ArrayList<String> lines) throws Exception{
 		 HashMap<Relation,  Integer> overlapp=new HashMap<Relation,  Integer> ();
 		 
-		 String querystr= "select ?r ?d  (COUNT(*) as ?n)   where {graph <" + target.name + "> {\n";
+		 String querystr=" PREFIX owl: <http://www.w3.org/2002/07/owl#> \n"
+				 +"select ?r ?d  (COUNT(*) as ?n)   where {graph <" + target.name + "> {\n";
 		 querystr+=" values (?x ?y) {\n";
 		 		for(String line:lines){
 		 				line=line.trim();
@@ -183,14 +184,16 @@ public class GetOvelappingRels {
 		 return overlapp;
 	}
 	
+	
+
 	public static final String getSubQueryForDirection(boolean direction){
 		String query=" ";
-		query+=" {select ?x ?r ?y ?d where { ";
+		query+=" {select  ?x ?r ?y ?d where { ";
 				query+=" values  ?d { ";
 				query+=(direction)?" \"direct\" ":" \"indirect\" ";
 				query+= " } ";
 				query+= (direction)?" ?x ?r ?y. ":" ?y ?r ?x. ";
-				query+="}} \n";
+				query+="}}   \n";
 		return query;		
 	}
 	
@@ -320,14 +323,14 @@ public class GetOvelappingRels {
 		it.init(fileWithPairs);
 		while((lines=it.getNextLines(tuplesPerQuery))!=null){	
 			System.out.print("-");
-			/** PCA direct**/
+			/** PCA direct
 			//System.out.println(" PCA Direct ");
 			HashMap<Relation,  Integer> denominator=getPCADenominatorForGroupOfPairs_V2(lines, direct, inverse, target, prefixAtSource, false);
 			for(Relation r:denominator.keySet()){
 				Alignment struct=relationsAtOther.get(r);
 				if(struct==null) continue;
 				struct.pcaDenominatorSourceToTarget+=denominator.get(r);
-			}
+			}**/
 			
 			/** PCA direct with counterpart **/
 			//System.out.println(" PCA Direct Counterpart");
@@ -356,9 +359,9 @@ public class GetOvelappingRels {
 								}
 			querystr+="\t}\n";
 			
-			if(relationsDirect!=null) querystr+=(checkCounterpartForExistentialObject) ?  getExistentialSubQueryForDirectionWithCheckOfCounterpartForObject_V2(true, target, relationsDirect): getExistentialSubQueryForDirection_V2(true, target, relationsDirect);
+			if(relationsDirect!=null) querystr+=(checkCounterpartForExistentialObject) ?  getExistentialSubQueryForDirectionWithCheckOfCounterpartForObject_V2(true, target, relationsDirect,prefixAtSource): getExistentialSubQueryForDirection_V2(true, target, relationsDirect);
 			if(relationsDirect!=null && relationsInv!=null) querystr+=" UNION \n";
-			if(relationsInv!=null) querystr+=(checkCounterpartForExistentialObject) ? getExistentialSubQueryForDirectionWithCheckOfCounterpartForObject_V2(false, target, relationsInv): getExistentialSubQueryForDirection_V2(false, target, relationsInv);
+			if(relationsInv!=null) querystr+=(checkCounterpartForExistentialObject) ? getExistentialSubQueryForDirectionWithCheckOfCounterpartForObject_V2(false, target, relationsInv, prefixAtSource): getExistentialSubQueryForDirection_V2(false, target, relationsInv);
 			querystr+="}} group by ?r ?d  ";
 			
 			
@@ -402,7 +405,7 @@ public class GetOvelappingRels {
         return query;		
 	}
 	
-	public static final String getExistentialSubQueryForDirectionWithCheckOfCounterpartForObject_V2(boolean direction, KB target, Collection<Relation> relations){
+	public static final String getExistentialSubQueryForDirectionWithCheckOfCounterpartForObject_V2(boolean direction, KB target, Collection<Relation> relations, String domain){
 		String query=" ";
 		query+=" { select distinct ?x ?r ?d where { ";
 		query+=" values  ?d { ";
@@ -417,7 +420,7 @@ public class GetOvelappingRels {
 		
 		query+= ((direction)?" { ?x ?r ?y } ":" { ?y ?r ?x } ");
 		query+=" ?y owl:sameAs ?y2. ";
-		//query += " FILTER (strstarts(str(?y2), \"" + prefixAtOther + "\") ). ";
+		query += " FILTER (strstarts(str(?y2), \"" + domain + "\") ). ";
 		query+=" }} \n";
 		return query;		
 	}
@@ -429,7 +432,6 @@ public class GetOvelappingRels {
 	public static class  Alignment{
 		public int sharedXY=0;
 		public int originalSamples=0;
-		public int subjectsAtTarget=0;
 		public int pcaDenominatorSourceToTarget=0;
 		public int pcaDenominatorSourceToTargetWithCounterPartForObject=0;
 		
@@ -442,27 +444,14 @@ public class GetOvelappingRels {
 	/** test**/
 	/**************************************/
 	public static final void test(KB kb){
-		String queryStr = "select ?r ?d  (COUNT(?x) as ?n)   where {graph <"+kb.name+"> {\n"
-			+" values (?x ?y) {\n"
-			+	" (  <http://yago-knowledge.org/resource/M?el_Sechnaill_mac_Domnaill>    <http://yago-knowledge.org/resource/Armagh> ) \n"
-			+	" (  <http://yago-knowledge.org/resource/?ed_Findliath>    <http://yago-knowledge.org/resource/Armagh> ) \n"
-			+	" (  <http://yago-knowledge.org/resource/Shuja-ud-Daula>    <http://yago-knowledge.org/resource/Gulab_Bari> ) \n"
-			+	" (  <http://yago-knowledge.org/resource/Ibrahim_Lodi>    <http://yago-knowledge.org/resource/Panipat> )\n"
-			+	" (  <http://yago-knowledge.org/resource/Hugh_O'Neill,_Earl_of_Tyrone>    <http://yago-knowledge.org/resource/San_Pietro_in_Montorio> )\n" 
-			+	" (  <http://yago-knowledge.org/resource/Jayanegara>    <http://yago-knowledge.org/resource/Trowulan> ) \n"
-			+	" (  <http://yago-knowledge.org/resource/Mahbub_Ali_Khan,_Asaf_Jah_VI>    <http://yago-knowledge.org/resource/India> ) \n"
-			+	" (  <http://yago-knowledge.org/resource/Osman_Ali_Khan,_Asaf_Jah_VII>    <http://yago-knowledge.org/resource/India> ) \n"
-			+	" (  <http://yago-knowledge.org/resource/Mir_Akbar_Ali_Khan_Sikander_Jah,_Asaf_Jah_III>    <http://yago-knowledge.org/resource/India> )\n" 
-			+	" (  <http://yago-knowledge.org/resource/Alauddin_Khilji>    <http://yago-knowledge.org/resource/India> )\n"
-			+	"}\n"
-			+"{   select distinct ?x ?r ?y ?d where {  values  ?d {  \"direct\"  }  ?x ?r ?y2.  }} "
-			+" UNION \n"
-			+" {   select distinct ?x ?r ?y ?d where {  values  ?d {  \"indirect\"  }  ?y2 ?r ?x. }} "
-			+"}} group by ?r ?d  ";
 		
-		System.out.println(queryStr);
+		String queryForGettingGoodXs=" PREFIX owl: <http://www.w3.org/2002/07/owl#> "
+											+" select distinct  ?y2 where {graph <yago> {"
+											+" <http://yago-knowledge.org/resource/Abu_Dhabi> owl:sameAs ?y2. "
+											+ "}}";
 		
-		QueryEngineHTTP query = new QueryEngineHTTP(kb.endpoint, queryStr);
+
+		QueryEngineHTTP query = new QueryEngineHTTP(kb.endpoint, queryForGettingGoodXs);
 		ResultSet rst = query.execSelect();
 		if (rst != null) {
 			System.out.println(" Iterator ");
@@ -470,13 +459,55 @@ public class GetOvelappingRels {
 				
 				QuerySolution qs = rst.next();
 				
-				RDFNode r= (RDFNode) qs.get("?r");
-				System.out.println(" Extract "+r);
+				
+				RDFNode y2= (RDFNode) qs.get("?y2");
+				System.out.println(" "+y2);
 			}}
 		else {
 			System.out.println("No results ");
 		}
+		
+		
 	}
+	
+	public static final HashMap<Relation,  Integer> testShared(KB target, ArrayList<String> lines, String domainAtSource) throws Exception{
+		 HashMap<Relation,  Integer> overlapp=new HashMap<Relation,  Integer> ();
+		 
+		 String querystr=" PREFIX owl: <http://www.w3.org/2002/07/owl#> \n"
+				 +"select ?r ?d  ?x ?y  where {graph <" + target.name + "> {\n";
+		 querystr+=" values (?x ?y) {\n";
+		 		for(String line:lines){
+		 				line=line.trim();
+		 				String[] parts=line.split(separatorSpace);
+		 				querystr+="\t (  "+"<"+parts[0]+">  "+"  <"+parts[1]+">"+" ) \n";
+			}
+			querystr+="\t}\n";
+			querystr+= getSubQueryForDirection(true);
+			querystr+=" UNION \n";
+			querystr+= getSubQueryForDirection(false);
+			querystr+="}}  order by ?r, ?x, ?y ";
+			
+			//System.out.println("Relations with overlapp "+querystr);
+			
+			QueryEngineHTTP query = new QueryEngineHTTP(target.endpoint, querystr);
+			ResultSet rst = query.execSelect();
+			if (rst != null) {
+				while (rst.hasNext()) {
+					QuerySolution qs = rst.next();
+					
+					RDFNode x= (RDFNode) qs.get("?x");
+					RDFNode y= (RDFNode) qs.get("?y");
+					RDFNode r = (RDFNode) qs.get("?r");
+					String d = qs.get("?d").asLiteral().getString().trim();
+					System.out.println(x+" "+y+" "+r);
+				}
+			}else{
+				
+			}	
+		 return overlapp;
+	}
+	
+	
 	
 	public static void main(String[] args) throws Exception {	
 		// String
@@ -487,8 +518,8 @@ public class GetOvelappingRels {
 		KB source = new KB("dbpedia", "http://s6.adam.uvsq.fr:8891/sparql", "http://dbpedia.org");
 		KB target = new KB("yago", "http://s6.adam.uvsq.fr:8891/sparql", "http://yago-knowledge.org");
 		
-		//test(target);
-	    //System.exit(0);
+		test(target);
+	    System.exit(0);
 	
 		String fileWithRelations = dir + source.name + "/" + source.name + "_functionality_ee.txt";
 		ArrayList<Relation> relations = loadRelationsFromFilesWithFunctionality(fileWithRelations, true, 0, 4, 5);
@@ -500,19 +531,21 @@ public class GetOvelappingRels {
 		BufferedWriter writer = new BufferedWriter(
 				new OutputStreamWriter(new FileOutputStream(fileWithAlignements), "UTF-8"));
 	
-		String header="source target sharedXY originalXY pcaDenRelDirect pcaDenRelDirectCheckCounterpartForObject ";
+		String header="source target sharedXY originalXY pcaDenRelDirectCheckCounterpartForObject ";
 		System.out.println(header);
 		for (Relation r : relations) {
 			System.out.println(r);
 			extractPairs(r, source, target.resourcesDomain,  fileWithPairs);
-			HashMap<Relation,  Alignment> relationsAtOther=iterateAndComputeSharedPairs(2*tuplesPerQuery, fileWithPairs,  target, source.resourcesDomain);
+			HashMap<Relation,  Alignment> relationsAtOther=iterateAndComputeSharedPairs(2*tuplesPerQuery, fileWithPairs,  target);
+			
+			//System.exit(0);
 			if(relationsAtOther.keySet().isEmpty()) continue;
 			iterateAndComputePCADenominator_V2(tuplesPerQuery, fileWithPairs, target, source.resourcesDomain, relationsAtOther);
 			
 			boolean hasSolutions=false;
 			for(Relation rO:relationsAtOther.keySet()){
 				Alignment struct=relationsAtOther.get(rO);
-				String line=r+" "+rO+" "+struct.sharedXY+" "+struct.originalSamples+" "+struct.pcaDenominatorSourceToTarget+" "+struct.pcaDenominatorSourceToTargetWithCounterPartForObject;
+				String line=r+" "+rO+" "+struct.sharedXY+" "+struct.originalSamples+" "+struct.pcaDenominatorSourceToTargetWithCounterPartForObject;
 				System.out.println(line);
 				writer.write(line+"\n");
 				hasSolutions=true;
@@ -524,6 +557,7 @@ public class GetOvelappingRels {
 				writer.flush();
 			}
 
+			
 		}
 		writer.close();
 
