@@ -16,15 +16,10 @@ import com.hp.hpl.jena.rdf.model.RDFNode;
 import com.hp.hpl.jena.sparql.engine.http.QueryEngineHTTP;
 
 public class SeperateRelationsEEandEL {
-	/**
-     * *************************
-     */
-    /**
+	
+     /**************************
      * load the relations *
-     */
-    /**
-     * *************************
-     */
+     ***************************/
     public static final HashMap<String, String> loadRelations(String file) throws Exception {
         File f = new File(file);
         if (!f.exists()) {
@@ -105,8 +100,7 @@ public class SeperateRelationsEEandEL {
                 }
             }
         }
-    //    c.close();
-
+        // c.close();
         if (count > 0 && ((float) entitiesCount) / count > 0.5) {
             return true;
         }
@@ -120,6 +114,8 @@ public class SeperateRelationsEEandEL {
             
             return rst;
     }
+    
+   
 
     public static void main(String[] args) {
         
@@ -128,9 +124,7 @@ public class SeperateRelationsEEandEL {
            
         String dir ="/Users/mary/Dropbox/Mary_SOFYA_code et al/statistics/freebase/";
         String fileWithRelations = "freebase_functionality.txt";
-       
-
-       
+     
             HashMap<String, String> relations;
 			try {
 				relations = loadRelations(dir+fileWithRelations);
@@ -139,13 +133,6 @@ public class SeperateRelationsEEandEL {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
-            
-            
-           
-            
-            
-        
-
     }
 
 }
