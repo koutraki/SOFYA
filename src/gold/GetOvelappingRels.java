@@ -1,5 +1,6 @@
 package gold;
 
+
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -365,9 +366,10 @@ public class GetOvelappingRels {
 			querystr+="}} group by ?r ?d  ";
 			
 			
-			//System.out.println("Q Denominator: \n"+querystr);
-			
+		//	System.out.println("Q Denominator: \n"+querystr);
+			try{
 			QueryEngineHTTP query = new QueryEngineHTTP(target.endpoint, querystr);
+			query.setTimeout(100000000000l);
 			ResultSet rst = query.execSelect();
 			if (rst != null) {
 				while (rst.hasNext()) {
@@ -384,7 +386,12 @@ public class GetOvelappingRels {
 				}
 			}
 	    System.out.print("*");
+			}catch(Exception e){
+				System.err.println(querystr);
+				System.exit(0);
+			}
 		return denominator;
+		
 	}
 	
 	public static final String getExistentialSubQueryForDirection_V2(boolean direction, KB target, Collection<Relation> relations){
@@ -512,21 +519,22 @@ public class GetOvelappingRels {
 	public static void main(String[] args) throws Exception {	
 		// String
 		// dir="/Users/mary/Dropbox/feb-sofya/";//"/Users/adi/Dropbox/DBP/feb-sofya/dbpedia/";
-		String dir ="/Users/adi/Dropbox/DBP/feb-sofya/"; //"feb-sofya/";
-		String tmpDir ="/Users/adi/Dropbox/DBP/"; //"tmpDir";// 
+		String dir = "feb-sofya/"; //"/Users/adi/Dropbox/DBP/feb-sofya/";
+		String tmpDir = "tmpDir/";  // "/Users/adi/Dropbox/DBP/";
 
-		KB source = new KB("dbpedia", "http://s6.adam.uvsq.fr:8892/sparql", "http://dbpedia.org");
-		KB target = new KB("yago", "http://s6.adam.uvsq.fr:8892/sparql", "http://yago-knowledge.org");
+		KB source = new KB("yago", "http://s6.adam.uvsq.fr:8892/sparql", "http://yago-knowledge.org");
+	//	KB target = new KB("dbpedia", "http://s6.adam.uvsq.fr:8892/sparql", "http://dbpedia.org");
+		KB target = new KB("freebase", "http://s6.adam.uvsq.fr:8892/sparql", "http://rdf.freebase.com");
 		
-		//test(target);
-	    //System.exit(0);
+	//	test(target);
+	// System.exit(0);
 	
 		String fileWithRelations = dir + source.name + "/" + source.name + "_functionality_ee.txt";
 		ArrayList<Relation> relations = loadRelationsFromFilesWithFunctionality(fileWithRelations, true, 0, 4, 5);
 
 		String fileWithPairs = tmpDir + "pairs.txt";
 		String fileWithAlignements =  tmpDir +source.name+"_"+target.name+"_align_2.txt";
-		int tuplesPerQuery = 500;
+		int tuplesPerQuery = 500; // changed!!!
 		
 		BufferedWriter writer = new BufferedWriter(
 				new OutputStreamWriter(new FileOutputStream(fileWithAlignements), "UTF-8"));
