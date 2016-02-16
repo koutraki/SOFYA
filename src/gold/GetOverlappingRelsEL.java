@@ -9,6 +9,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 
 import com.hp.hpl.jena.query.QuerySolution;
 import com.hp.hpl.jena.query.ResultSet;
@@ -106,9 +107,33 @@ public class GetOverlappingRelsEL {
 		}
 	}
 	
-	/***************************************************************************************/
-	/** GET POSSIBLE EL RELATIONS FOR SET OF SUBJECTS **/
-	/***************************************************************************************/
+	/****************************************************************************/
+	/** GET EL PAIR-RELATIONS WITH MATCHING SUBJECTS **/
+	/****************************************************************************/
+	 public static final void getPairRelationsWithMatcingSubjects(int tuplesPerQuery, String tmpDir, ArrayList<Relation> relations, KB source, KB target) throws Exception{
+ 		String fileWithSubjects = tmpDir + "subjects_el.txt";
+		String fileWithAlignements =  tmpDir +source.name+"_"+target.name+"_align_el.txt";
+	
+		BufferedWriter writer = new BufferedWriter(
+				new OutputStreamWriter(new FileOutputStream(fileWithAlignements), "UTF-8"));
+		for (Relation r : relations) {
+			System.out.println(r);
+			extractSubjects(r, source, target.resourcesDomain,  fileWithSubjects);
+		
+			HashMap<Relation,  Integer> atTarget=getAllELRelationsForSetOfSubjects(tuplesPerQuery, fileWithSubjects, target);
+			
+			for(Relation rt: atTarget.keySet()){
+				String line=r+"     "+ rt+"    "+atTarget.get(rt);
+				System.out.println(line);
+				writer.write(line+"\n");
+				writer.flush();
+			}
+			System.out.println();
+			
+		}
+		writer.close();
+	 }
+	
 	public static final HashMap<Relation,  Integer>  getAllELRelationsForSetOfSubjects (int tuplesPerQuery, String fileWithSubjects,   KB target) throws Exception{
 		IteratorFromFile it= new IteratorFromFile();
 	
@@ -129,15 +154,11 @@ public class GetOverlappingRelsEL {
 				}
 				else relationsAtOther.put(r, new Integer(no+overlapp.get(r))); 
 			}
-			
 		}
 		it.close();
-		
-			
 		System.out.println(" ");
 		return  relationsAtOther;
 	}
-	
 	
 	
 	public static final HashMap<Relation,  Integer> getAllCandidateTargetRelationsForSubGroupOfSubjects(KB target, ArrayList<String> lines) throws Exception{
@@ -182,10 +203,37 @@ public class GetOverlappingRelsEL {
 	 /*************************/
     /*** get all the types **/
     /************************/
-    public static final void getTypesForELRelations(KB kb, String relation ){
-    	
+	public static final HashSet<String>  getAllTypesForRelation(String relation, int tuplesPerQuery, String fileWithSubjects,   KB target) throws Exception{
+		IteratorFromFile it= new IteratorFromFile();
+	
+		HashSet<String>  allTypes=new HashSet<String> ();
+		ArrayList<String> lines=null;
+		
+		
+		it.init(fileWithSubjects);
+		while((lines=it.getNextLines(tuplesPerQuery))!=null){
+			System.out.print("+");
+			
+		
+			HashSet<String>  typesForGroup=   getTypesForELRelationAndGroupOfSubjects(target, relation, lines); //testShared(target, lines); 
+			allTypes.addAll(typesForGroup);
+		}
+		it.close();
+		System.out.println(" ");
+		return  allTypes;
+	}
+	
+    public static final  HashSet<String>  getTypesForELRelationAndGroupOfSubjects(KB kb, String relation, ArrayList<String> lines ){
+    	HashSet<String> typesForObjectsGivenGroupOfSubjects= new HashSet<String>();
     		String queryStr=" select  ?t  \n";
-    		queryStr+=" where { ?x <"+relation+"> ?y.  \n";
+    		queryStr+=" where {"
+    						+ "?x { ";
+    						for(String line:lines){
+    			 				line=line.trim();
+    			 				queryStr+="  "+"<"+line+">  "+"  \n";
+    						}
+    		queryStr+=" } "
+    						+"?x <"+relation+"> ?y.  \n";
     		queryStr+="  FILTER isLiteral(?y).  ";
     		queryStr+="  BIND (datatype(?y) as ?t) ";
     		queryStr+=" } group by ?t ";
@@ -198,55 +246,45 @@ public class GetOverlappingRelsEL {
 					QuerySolution qs = rst.next();
 					RDFNode t = (RDFNode) qs.get("?t");
 					System.out.println(relation+"        "+t);
+					typesForObjectsGivenGroupOfSubjects.add(t.toString());
 				}
 			}else{
 				
 			}	
-    		
+    		return typesForObjectsGivenGroupOfSubjects;
     }
 	
+   
+ 
 	public static void main(String[] args) throws Exception {	
 	
 		String dir ="/Users/adi/Dropbox/DBP/feb-sofya/"; //"feb-sofya/";
 		String tmpDir ="/Users/adi/Dropbox/DBP/"; //"tmpDir";// 
 
-		KB source = new KB("dbpedia", "http://s6.adam.uvsq.fr:8892/sparql", "http://dbpedia.org");
-		KB target = new KB("yago", "http://s6.adam.uvsq.fr:8892/sparql", "http://yago-knowledge.org");
+		KB target = new KB("dbpedia", "http://s6.adam.uvsq.fr:8892/sparql", "http://dbpedia.org");
+		KB source = new KB("yago", "http://s6.adam.uvsq.fr:8892/sparql", "http://yago-knowledge.org");
 		
 	
 		String fileWithRelations = dir + source.name + "/" + source.name + "_funct_el.txt";
 		ArrayList<Relation> relations = loadELRelationsFromFilesWithFunctionality(fileWithRelations, true, 0, 4, 5);
 
-		for(Relation r: relations){
-			getTypesForELRelations(source, r.uri);
-		}
-		System.exit(0);
-		
-		String fileWithSubjects = tmpDir + "subjects_el.txt";
-		String fileWithAlignements =  tmpDir +source.name+"_"+target.name+"_align_el.txt";
 		int tuplesPerQuery = 1000;
 		
-		BufferedWriter writer = new BufferedWriter(
-				new OutputStreamWriter(new FileOutputStream(fileWithAlignements), "UTF-8"));
-	
-		String header="source target subjectsWithTargetRelation ";
-		System.out.println(header);
-		for (Relation r : relations) {
-			System.out.println(r);
-			extractSubjects(r, source, target.resourcesDomain,  fileWithSubjects);
-		
-			HashMap<Relation,  Integer> atTarget=getAllELRelationsForSetOfSubjects(tuplesPerQuery, fileWithSubjects, target);
-			
-			for(Relation rt: atTarget.keySet()){
-				String line=r+"     "+ rt+"    "+atTarget.get(rt);
-				System.out.println(line);
-				writer.write(line+"\n");
-				writer.flush();
-			}
-			System.out.println();
-			
+		String fileWithSubjects = tmpDir + "subjects_el.txt";
+		String fileWithTypes =  tmpDir +source.name+"_types_el.txt";	
+		BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(fileWithTypes), "UTF-8"));
+		 for(Relation r: relations){
+			 System.out.println(r);
+			 extractSubjects(r, source, target.resourcesDomain,  fileWithSubjects);
+			 HashSet<String> types= getAllTypesForRelation(r.uri, tuplesPerQuery, fileWithSubjects, target);
 		}
 		writer.close();
+		
+		
+		System.exit(0);
+		getPairRelationsWithMatcingSubjects(tuplesPerQuery, tmpDir, relations, source, target);
+		
+		
 
 	}
 	
