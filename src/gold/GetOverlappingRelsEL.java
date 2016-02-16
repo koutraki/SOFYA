@@ -29,7 +29,7 @@ public class GetOverlappingRelsEL {
 	public static final String separatorSpace = "\\s+";
 
 	public static final ArrayList<Relation> loadELRelationsFromFilesWithFunctionality(String file, boolean skipFirstLine,
-			int columnRelation, int columnDirectFunc, int columnInvFunc) throws Exception {
+			int columnRelation, int columnDirectFunc, int columnInvFunc, int columnTupleNo) throws Exception {
 
 		File f = new File(file);
 		if (!f.exists()) {
@@ -53,8 +53,9 @@ public class GetOverlappingRelsEL {
 
 			double functOfDirect = Double.valueOf(e[columnDirectFunc]);
 			double functOfInverse = Double.valueOf(e[columnInvFunc]);
+			double tupleNo = Double.valueOf(e[columnTupleNo]);
 
-			Relation r =  new Relation(relation, true, functOfDirect, functOfInverse);
+			Relation r =  new Relation(relation, true, functOfDirect, functOfInverse, tupleNo);
 					
 
 			System.out.println(relation + " " + functOfDirect + " " + functOfInverse);
@@ -71,11 +72,44 @@ public class GetOverlappingRelsEL {
 	
 	
 	/****************************************************************************/
-	/** EXTRACT SUBJECTS FOR EL RELATIONS **/
+	/** EXTRACT SUBJECTS/PAIRS  FOR EL RELATIONS **/
 	/****************************************************************************/
 	public static final String separatorForELPairs=" %%% ";
 	
-	public static final void extractSubjects(Relation r, KB kb, String prefixTarget, String fileWithSubjects)
+	public static final void extractPairsWithSubjectsMappedToTarget(String r, KB kb, String prefixTarget, String fileWithPairs)
+			throws Exception {
+		System.out.println("Extract pairs for " + r);
+		String querystr = "  PREFIX owl: <http://www.w3.org/2002/07/owl#> \n"
+				+ "select  ?x2 ?y  where {graph <" + kb.name + "> {\n";
+		querystr +=  "?x  <" + r + "> ?y. \n" ;
+		querystr += "?x  owl:sameAs ?x2. \n";
+		querystr += "FILTER ( strstarts(str(?x2), \"" + prefixTarget + "\") ).\n";
+		querystr += "   } } ";
+		System.out.println(querystr);
+		BufferedWriter writer = new BufferedWriter(
+				new OutputStreamWriter(new FileOutputStream(fileWithPairs), "UTF-8"));
+
+		QueryEngineHTTP query = new QueryEngineHTTP(kb.endpoint, querystr);
+		query.setTimeout(100000000000l);
+		ResultSet rst = query.execSelect();
+		if (rst != null) {
+			while (rst.hasNext()) {
+				QuerySolution qs = rst.next();
+				RDFNode x2 = (RDFNode) qs.get("?x2");
+				String y=qs.get("?y").asLiteral().getString();
+				String line=x2+separatorForELPairs+y;
+				System.out.println(line);
+				writer.write(line + " \n");
+			}
+			writer.close();
+			System.out.println("				.... finished extracting pairs for " + r);
+		}else{
+			System.err.println("				.... No results for " + r);
+		}
+	}
+	
+	
+	public static final void extractSubjectsMappedToTarget(Relation r, KB kb, String prefixTarget, String fileWithSubjects)
 			throws Exception {
 		System.out.println("Extract pairs for " + r);
 		String querystr = "  PREFIX owl: <http://www.w3.org/2002/07/owl#> \n"
@@ -91,7 +125,7 @@ public class GetOverlappingRelsEL {
 				new OutputStreamWriter(new FileOutputStream(fileWithSubjects), "UTF-8"));
 
 		QueryEngineHTTP query = new QueryEngineHTTP(kb.endpoint, querystr);
-
+		query.setTimeout(100000000000l);
 		ResultSet rst = query.execSelect();
 		if (rst != null) {
 			while (rst.hasNext()) {
@@ -107,6 +141,34 @@ public class GetOverlappingRelsEL {
 		}
 	}
 	
+	public static final void extractSubjectsFromKB(Relation r, KB kb,  String fileWithSubjects)
+			throws Exception {
+		System.out.println("Extract pairs for " + r);
+		String querystr = "  PREFIX owl: <http://www.w3.org/2002/07/owl#> \n"
+				+ "select distinct ?x  where {graph <" + kb.name + "> {\n";
+		querystr += (r.isDirect) ? "?x  <" + r.uri + "> ?y. \n" : "?y <" + r.uri + "> ?x. \n";
+		querystr += "   } } ";
+
+		// System.out.println(querystr);
+		BufferedWriter writer = new BufferedWriter(
+				new OutputStreamWriter(new FileOutputStream(fileWithSubjects), "UTF-8"));
+
+		QueryEngineHTTP query = new QueryEngineHTTP(kb.endpoint, querystr);
+		query.setTimeout(100000000000l);
+		ResultSet rst = query.execSelect();
+		if (rst != null) {
+			while (rst.hasNext()) {
+				QuerySolution qs = rst.next();
+				RDFNode x = (RDFNode) qs.get("?x");
+				//System.out.println(x2 );
+				writer.write(x + " \n");
+			}
+			writer.close();
+			System.out.println("				.... finished extracting pairs for " + r);
+		}else{
+			System.err.println("				.... No results for " + r);
+		}
+	}
 	/****************************************************************************/
 	/** GET EL PAIR-RELATIONS WITH MATCHING SUBJECTS **/
 	/****************************************************************************/
@@ -118,7 +180,7 @@ public class GetOverlappingRelsEL {
 				new OutputStreamWriter(new FileOutputStream(fileWithAlignements), "UTF-8"));
 		for (Relation r : relations) {
 			System.out.println(r);
-			extractSubjects(r, source, target.resourcesDomain,  fileWithSubjects);
+			extractSubjectsMappedToTarget(r, source, target.resourcesDomain,  fileWithSubjects);
 		
 			HashMap<Relation,  Integer> atTarget=getAllELRelationsForSetOfSubjects(tuplesPerQuery, fileWithSubjects, target);
 			
@@ -160,7 +222,6 @@ public class GetOverlappingRelsEL {
 		return  relationsAtOther;
 	}
 	
-	
 	public static final HashMap<Relation,  Integer> getAllCandidateTargetRelationsForSubGroupOfSubjects(KB target, ArrayList<String> lines) throws Exception{
 		 HashMap<Relation,  Integer> overlapp=new HashMap<Relation,  Integer> ();
 		 
@@ -179,6 +240,7 @@ public class GetOverlappingRelsEL {
 			//System.out.println("Query for extracting EL relations at target \n\t "+querystr);
 			
 			QueryEngineHTTP query = new QueryEngineHTTP(target.endpoint, querystr);
+			query.setTimeout(100000000000l);
 			ResultSet rst = query.execSelect();
 			if (rst != null) {
 				while (rst.hasNext()) {
@@ -203,89 +265,187 @@ public class GetOverlappingRelsEL {
 	 /*************************/
     /*** get all the types **/
     /************************/
-	public static final HashSet<String>  getAllTypesForRelation(String relation, int tuplesPerQuery, String fileWithSubjects,   KB target) throws Exception{
-		IteratorFromFile it= new IteratorFromFile();
+	public static final int getNoOfPairsForRelation(KB kb, String relation ){
+		String queryStr=" select  (count(*) as ?n) where {graph <" + kb.name + "> {\n";
+		queryStr+=" ?x <"+relation+"> ?y. ";
+		queryStr+=" } }  \n";
 	
-		HashSet<String>  allTypes=new HashSet<String> ();
-		ArrayList<String> lines=null;
-		
-		
-		it.init(fileWithSubjects);
-		while((lines=it.getNextLines(tuplesPerQuery))!=null){
-			System.out.print("+");
-			
-		
-			HashSet<String>  typesForGroup=   getTypesForELRelationAndGroupOfSubjects(target, relation, lines); //testShared(target, lines); 
-			allTypes.addAll(typesForGroup);
+		//System.out.println("Query: "+queryStr);
+		QueryEngineHTTP query = new QueryEngineHTTP(kb.endpoint, queryStr);
+		query.setTimeout(100000000000l);
+		ResultSet rst = query.execSelect();
+		if (rst != null) {
+			while (rst.hasNext()) {
+				QuerySolution qs = rst.next();
+				RDFNode n = (RDFNode) qs.get("?n");
+				System.out.println("Found "+n.asLiteral().getString());
+				return Integer.getInteger(n.asLiteral().getString());
+			}
 		}
-		it.close();
-		System.out.println(" ");
-		return  allTypes;
+		return -1;
 	}
 	
-    public static final  HashSet<String>  getTypesForELRelationAndGroupOfSubjects(KB kb, String relation, ArrayList<String> lines ){
+	
+    public static final  HashSet<String>  getTypesForELRelationAndGroupOfSubjects(KB kb, String relation, int Xno ){
     	HashSet<String> typesForObjectsGivenGroupOfSubjects= new HashSet<String>();
-    		String queryStr=" select  ?t  \n";
-    		queryStr+=" where {"
-    						+ "?x { ";
-    						for(String line:lines){
-    			 				line=line.trim();
-    			 				queryStr+="  "+"<"+line+">  "+"  \n";
-    						}
-    		queryStr+=" } "
-    						+"?x <"+relation+"> ?y.  \n";
-    		queryStr+="  FILTER isLiteral(?y).  ";
-    		queryStr+="  BIND (datatype(?y) as ?t) ";
-    		queryStr+=" } group by ?t ";
-    		
-    		
+    		String queryStr=" select  ?t  where {graph <" + kb.name + "> {\n";
+    		queryStr+=" {select  ?x ?y  where {\n";
+    		queryStr+=" ?x <"+relation+"> ?y. ";
+    		queryStr+=" } order by ?x ?y limit "+Xno+"}  \n";
+    		queryStr+="  FILTER isLiteral(?y).  \n";
+    		queryStr+="  BIND (datatype(?y) as ?t) \n";
+    		queryStr+=" }} group by ?t ";
+    		//System.out.println("Query: "+queryStr);
     		QueryEngineHTTP query = new QueryEngineHTTP(kb.endpoint, queryStr);
-			ResultSet rst = query.execSelect();
+    		query.setTimeout(100000000000l);
+    		ResultSet rst = query.execSelect();
 			if (rst != null) {
 				while (rst.hasNext()) {
 					QuerySolution qs = rst.next();
 					RDFNode t = (RDFNode) qs.get("?t");
 					System.out.println(relation+"        "+t);
-					typesForObjectsGivenGroupOfSubjects.add(t.toString());
+					typesForObjectsGivenGroupOfSubjects.add((t==null)?null:t.toString());
+				}
+			}else{
+			}	
+    		return typesForObjectsGivenGroupOfSubjects;
+    }
+    
+    
+	/****************************************************************************/
+	/** FIND EXCT MATCH FOR EL RELATIONS **/
+	/****************************************************************************/
+    public static final HashMap<Relation,  Alignment>  iterateAndComputeSharedPairs(int tuplesPerQuery, String fileWithPairs,   KB target) throws Exception{
+		IteratorFromFile it= new IteratorFromFile();
+	
+		HashMap<Relation,  Alignment> relationsAtOther=new HashMap<Relation,  Alignment>();
+		ArrayList<String> lines=null;
+		
+		int totalPairs=0;
+		it.init(fileWithPairs);
+		while((lines=it.getNextLines(tuplesPerQuery))!=null){
+			System.out.print("+");
+			totalPairs+=lines.size();
+			/** overlap **/
+			HashMap<Relation,  Integer> overlapp= getSharedForGroupOfPairs(target, lines); //testShared(target, lines); 
+			for(Relation r:overlapp.keySet()){
+				Alignment struct=relationsAtOther.get(r);
+				if(struct==null) {
+					struct=new Alignment(0);
+					relationsAtOther.put(r, struct);
+				}
+				struct.sharedXY+=overlapp.get(r);	
+			}
+			
+		}
+		it.close();
+		
+		/** set the total number of pairs translated to the target **/
+		for(Relation rel:relationsAtOther.keySet()){
+			Alignment struct=relationsAtOther.get(rel);
+			struct.originalSamples=totalPairs;
+		}		
+		System.out.println(" ");
+		return  relationsAtOther;
+	}
+	
+	
+	public static final HashMap<Relation,  Integer> getSharedForGroupOfPairs(KB target, ArrayList<String> lines) throws Exception{
+		 HashMap<Relation,  Integer> overlapp=new HashMap<Relation,  Integer> ();
+		 
+		 String querystr=" PREFIX owl: <http://www.w3.org/2002/07/owl#> \n"
+				 +"select ?r ?d  (COUNT(*) as ?n)   where {graph <" + target.name + "> {\n";
+		 querystr+=" values (?x ?y) {\n";
+		 		for(String line:lines){
+		 				line=line.trim();
+		 				String[] parts=line.split(separatorForELPairs);
+		 				querystr+="\t (  "+"<"+parts[0]+">  "+"  \""+parts[1]+"\""+" ) \n";
+			}
+			querystr+="\t}\n";
+			querystr+="";
+			querystr+="}} group by ?r ?d  ";
+			
+			//System.out.println("Relations with overlapp "+querystr);
+			
+			QueryEngineHTTP query = new QueryEngineHTTP(target.endpoint, querystr);
+			ResultSet rst = query.execSelect();
+			if (rst != null) {
+				while (rst.hasNext()) {
+					QuerySolution qs = rst.next();
+					
+					String n= qs.get("?n").asLiteral().getString().trim();
+					int sharedXY=Integer.valueOf(n);
+					if(sharedXY==0) continue;
+					
+					RDFNode r = (RDFNode) qs.get("?r");
+					String d = qs.get("?d").asLiteral().getString().trim();
+					boolean dir=(d.equals("direct"))?true:false;
+					Relation rel=new Relation(r.toString(), dir);
+					overlapp.put(rel, new Integer(sharedXY));
 				}
 			}else{
 				
 			}	
-    		return typesForObjectsGivenGroupOfSubjects;
-    }
+		 return overlapp;
+	}
 	
-   
  
 	public static void main(String[] args) throws Exception {	
 	
 		String dir ="/Users/adi/Dropbox/DBP/feb-sofya/"; //"feb-sofya/";
 		String tmpDir ="/Users/adi/Dropbox/DBP/"; //"tmpDir";// 
 
-		KB target = new KB("dbpedia", "http://s6.adam.uvsq.fr:8892/sparql", "http://dbpedia.org");
-		KB source = new KB("yago", "http://s6.adam.uvsq.fr:8892/sparql", "http://yago-knowledge.org");
+		KB dbpedia = new KB("dbpedia", "http://s6.adam.uvsq.fr:8892/sparql", "http://dbpedia.org");
+		KB yago = new KB("yago", "http://s6.adam.uvsq.fr:8892/sparql", "http://yago-knowledge.org");
+		KB freebase = new KB("freebase", "http://s6.adam.uvsq.fr:8892/sparql", "http://rdf.freebase.com");
 		
-	
-		String fileWithRelations = dir + source.name + "/" + source.name + "_funct_el.txt";
-		ArrayList<Relation> relations = loadELRelationsFromFilesWithFunctionality(fileWithRelations, true, 0, 4, 5);
-
-		int tuplesPerQuery = 1000;
 		
-		String fileWithSubjects = tmpDir + "subjects_el.txt";
-		String fileWithTypes =  tmpDir +source.name+"_types_el.txt";	
-		BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(fileWithTypes), "UTF-8"));
-		 for(Relation r: relations){
-			 System.out.println(r);
-			 extractSubjects(r, source, target.resourcesDomain,  fileWithSubjects);
-			 HashSet<String> types= getAllTypesForRelation(r.uri, tuplesPerQuery, fileWithSubjects, target);
-		}
-		writer.close();
+		KB S=dbpedia;
+		KB T=yago;
+		String relation="http://dbpedia.org/ontology/birthDate";
+		String fileWithPairs=  tmpDir +S.name+"_pairs_el.txt";
+		//extractPairsWithSubjectsMappedToTarget(relation, S, T.resourcesDomain, fileWithPairs);
+		int tuplesInBulk=50;
+		
 		
 		
 		System.exit(0);
+
+		/*** get the types for the first Xno tuples **/
+		KB kb=freebase;
+		String fileWithRelations = dir + kb.name + "/" + kb.name + "_functionality_el.txt";
+		String fileWithTypes =  tmpDir +kb.name+"_types_el.txt";
+		ArrayList<Relation> relations = loadELRelationsFromFilesWithFunctionality(fileWithRelations, true, 0, 4, 5, 3);
+		int Xno=1000;
+		BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(fileWithTypes), "UTF-8"));
+		 for(Relation r: relations){
+			 HashSet<String> types=null;
+			
+			 types=getTypesForELRelationAndGroupOfSubjects(kb, r.uri, Xno);
+		
+			 for(String t: types){
+				 String line=r+"  "+t;
+				 System.out.println(line);
+				 writer.write(line+"\n");
+				 writer.flush();
+			 }
+			 System.out.println(" ");
+			 writer.write("\n");
+		}
+		writer.close();
+		
+		System.exit(0);
+		
+		/** Relations with matching subjects **/
+		KB source=dbpedia;
+		KB target=yago;
+		int tuplesPerQuery=500;
+		fileWithRelations = dir + kb.name + "/" + source.name + "_functionality_el.txt";
+		relations = loadELRelationsFromFilesWithFunctionality(fileWithRelations, true, 0, 4, 5, 3);
 		getPairRelationsWithMatcingSubjects(tuplesPerQuery, tmpDir, relations, source, target);
 		
 		
-
+		
 	}
 	
 }

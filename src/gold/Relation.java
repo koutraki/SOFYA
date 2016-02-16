@@ -11,6 +11,8 @@ public class Relation {
 		
 		public double funct;
 		public double invFunct; 
+		
+		public double tupleNo;
 
 		
 		public  Relation(String uri, boolean isDirect, double funct, double invFunct) throws Exception {
@@ -18,6 +20,11 @@ public class Relation {
 			this.isDirect=isDirect;
 			this.funct=funct;
 			this.invFunct=invFunct;
+		}
+		
+		public  Relation(String uri, boolean isDirect, double funct, double invFunct, double tupleNo) throws Exception {
+			this(uri, isDirect, funct, invFunct);
+			this.tupleNo=tupleNo;
 		}
 		
 		public  Relation(String uri, boolean isDirect) throws Exception {
