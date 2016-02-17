@@ -10,7 +10,10 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map.Entry;
 
 import com.hp.hpl.jena.query.QuerySolution;
 import com.hp.hpl.jena.query.ResultSet;
@@ -27,13 +30,13 @@ public class GetOvelappingRels {
 	/****************************************************************************/
 	public static final String separatorSpace = "\\s+";
 
-	public static final ArrayList<Relation> loadRelationsFromFilesWithFunctionality(String file, boolean skipFirstLine,
-			int columnRelation, int columnDirectFunc, int columnInvFunc) throws Exception {
+	public static final void loadRelationsFromFilesWithFunctionality(Collection<Relation> list, String file, boolean skipFirstLine,
+			int columnRelation, int columnDirectFunc, int columnInvFunc, int columnTupleNo) throws Exception {
 
 		File f = new File(file);
 		if (!f.exists()) {
 			System.err.println("  File does not exit " + file);
-			return null;
+			return;
 		} else {
 			/** System.out.println(" Load : "+file); **/
 		}
@@ -42,7 +45,6 @@ public class GetOvelappingRels {
 		if (skipFirstLine)
 			pairReader.readLine();
 
-		ArrayList<Relation> list = new ArrayList<Relation>();
 		String line = null;
 		while ((line = pairReader.readLine()) != null) {
 			if (line.isEmpty())
@@ -52,18 +54,19 @@ public class GetOvelappingRels {
 
 			double functOfDirect = Double.valueOf(e[columnDirectFunc]);
 			double functOfInverse = Double.valueOf(e[columnInvFunc]);
+			double tupleNo = Double.valueOf(e[columnTupleNo]);
 
-			Relation r = (functOfDirect >= functOfInverse) ? new Relation(relation, true, functOfDirect, functOfInverse)
-					: new Relation(relation, false, functOfInverse, functOfDirect);
+			Relation r = (functOfDirect >= functOfInverse) ? new Relation(relation, true, functOfDirect, functOfInverse, tupleNo)
+					: new Relation(relation, false, functOfInverse, functOfDirect, tupleNo);
 
-			System.out.println(relation + " " + functOfDirect + " " + functOfInverse);
+			//System.out.println(relation + " " + functOfDirect + " " + functOfInverse);
 
 			if (!list.contains(relation)) {
 				list.add(r);
 			}
 		}
 		pairReader.close();
-		return list;
+		return;
 	}
 
 	/****************************************************************************/
@@ -209,8 +212,10 @@ public class GetOvelappingRels {
 		
 		/** process the file again in order to extract the PCA denominator **/
 		it.init(fileWithPairs);
+		int totalPairs=0;
 		while((lines=it.getNextLines(tuplesPerQuery))!=null){	
 			System.out.print("-");
+			totalPairs+=lines.size();
 			/** PCA direct**/
 			HashMap<Relation,  Integer> denominator=getPCADenominatorForGroupOfPairs_V1(lines, target, prefixAtSource, false);
 			for(Relation r:denominator.keySet()){
@@ -302,6 +307,7 @@ public class GetOvelappingRels {
 		IteratorFromFile it= new IteratorFromFile();
 		ArrayList<String> lines=null;
 		
+	
 		/** split the relations at target into direct and inverse **/
 		ArrayList<Relation> direct=null;
 		for(Relation r: relationsAtOther.keySet()){
@@ -321,9 +327,12 @@ public class GetOvelappingRels {
 	
 
 		/** process the file again in order to extract the PCA denominator **/
+		int totalPairs=0;
 		it.init(fileWithPairs);
 		while((lines=it.getNextLines(tuplesPerQuery))!=null){	
 			System.out.print("-");
+			totalPairs+=lines.size();
+			
 			/** PCA direct
 			//System.out.println(" PCA Direct ");
 			HashMap<Relation,  Integer> denominator=getPCADenominatorForGroupOfPairs_V2(lines, direct, inverse, target, prefixAtSource, false);
@@ -343,6 +352,12 @@ public class GetOvelappingRels {
 			}
 		}
 		it.close();
+		
+		/** set the total number of pairs translated to the target **/
+		for(Relation rel:relationsAtOther.keySet()){
+			Alignment struct=relationsAtOther.get(rel);
+			struct.originalSamples=totalPairs;
+		}		
 		
 		System.out.println(" ");
 		
@@ -366,7 +381,7 @@ public class GetOvelappingRels {
 			querystr+="}} group by ?r ?d  ";
 			
 			
-		//	System.out.println("Q Denominator: \n"+querystr);
+			//System.out.println("Q Denominator: \n"+querystr);
 			try{
 			QueryEngineHTTP query = new QueryEngineHTTP(target.endpoint, querystr);
 			query.setTimeout(100000000000l);
@@ -433,19 +448,6 @@ public class GetOvelappingRels {
 	}
 
 	
-	/*****************************************************************/
-	/**  Alignment Class**/
-	/*****************************************************************/
-	public static class  Alignment{
-		public int sharedXY=0;
-		public int originalSamples=0;
-		public int pcaDenominatorSourceToTarget=0;
-		public int pcaDenominatorSourceToTargetWithCounterPartForObject=0;
-		
-		public Alignment(int originalSamples){
-			this.originalSamples=originalSamples;
-		}
-	}
 	
 	/*************************************/
 	/** test**/
@@ -476,6 +478,204 @@ public class GetOvelappingRels {
 		
 		
 	}
+	
+	
+	
+	
+	public static final void align(String dir, String tmpDir, KB S, KB T) throws Exception{
+		String fileWithRelations = dir + S.name + "/" + S.name + "_functionality_ee.txt";
+		ArrayList<Relation> relations= new ArrayList<Relation>();
+		loadRelationsFromFilesWithFunctionality(relations, fileWithRelations, true, 0, 4, 5, 3);
+
+		String fileWithPairs = tmpDir + "pairs.txt";
+		String fileWithAlignements =  tmpDir +S.name+"_"+T.name+"_align_2.txt";
+		int tuplesPerQuery = 500; // changed!!!
+		
+		BufferedWriter writer = new BufferedWriter(
+				new OutputStreamWriter(new FileOutputStream(fileWithAlignements), "UTF-8"));
+	
+		String header="source target sharedXY originalXY pcaDenRelDirectCheckCounterpartForObject ";
+		System.out.println(header);
+		for (Relation r : relations) {
+			System.out.println(r);
+			extractPairs(r, S, T.resourcesDomain,  fileWithPairs);
+			HashMap<Relation,  Alignment> relationsAtOther=iterateAndComputeSharedPairs(2*tuplesPerQuery, fileWithPairs,  T);
+			
+			//System.exit(0);
+			if(relationsAtOther.keySet().isEmpty()) continue;
+			iterateAndComputePCADenominator_V2(tuplesPerQuery, fileWithPairs, T, S.resourcesDomain, relationsAtOther);
+			
+			boolean hasSolutions=false;
+			for(Relation rO:relationsAtOther.keySet()){
+				Alignment struct=relationsAtOther.get(rO);
+				String line=r+" "+rO+" "+struct.sharedXY+" "+struct.originalSamples+" "+struct.pcaDenominatorSourceToTargetWithCounterPartForObject;
+				System.out.println(line);
+				writer.write(line+"\n");
+				hasSolutions=true;
+				writer.flush();
+			}
+			if(hasSolutions) {
+				System.out.println();
+				writer.write("\n");
+				writer.flush();
+			}
+		}
+		writer.close();
+	}
+	
+	
+	/*************************************************************************************************************/
+	/**  SPEED-UP PROCESSING BY GETTING PARTIAL RESULTS FOR S TO T FROM T TO S **/
+	/**************************************************************************************************************/
+	public static final void alignByCompletingPartialResults(String dir, String tmpDir, KB S, KB T) throws Exception{
+		String fileWithPairs = tmpDir + "pairs.txt";
+		String fileWithAlignements =  tmpDir +S.name+"_"+T.name+"_align_2.txt";
+		int tuplesPerQuery = 500; // changed!!!
+		
+		
+		/** read the relations for the target, in the correct direction according to the functionality **/
+		String fileWithRelations = dir + S.name + "/" + S.name + "_functionality_ee.txt";
+		ArrayList<Relation> sortedRelations= new ArrayList<Relation>();
+		loadRelationsFromFilesWithFunctionality(sortedRelations, fileWithRelations, true, 0, 4, 5, 3);
+		//Collections.sort(sortedRelations, new Relation.RelationCompBasedOnTupleNo());
+		
+		
+		/** get the target to source results from the file **/
+		HashSet<Relation> relSetAtS=new HashSet<Relation>();
+		relSetAtS.addAll(sortedRelations);
+		HashMap<Relation, HashMap<Relation, Alignment>>   StoT_partialResults= read_TtoS_results(dir, S, relSetAtS, T);
+		
+			
+		BufferedWriter writer = new BufferedWriter(
+				new OutputStreamWriter(new FileOutputStream(fileWithAlignements), "UTF-8"));
+	
+		String header="source target sharedXY originalXY pcaDenRelDirectCheckCounterpartForObject ";
+		System.out.println(header);
+		
+		for (Relation rS : sortedRelations) {
+			if(! StoT_partialResults.containsKey(rS)) continue;
+			HashMap<Relation, Alignment> relationsAtOther=StoT_partialResults.get(rS);
+			if(relationsAtOther.keySet().isEmpty()) continue;
+			 
+			System.out.println(rS);
+			extractPairs(rS, S, T.resourcesDomain,  fileWithPairs);
+			
+			//System.exit(0);
+			iterateAndComputePCADenominator_V2(tuplesPerQuery, fileWithPairs, T, S.resourcesDomain, relationsAtOther);
+			
+			boolean hasSolutions=false;
+			for(Relation rO:relationsAtOther.keySet()){
+				Alignment struct=relationsAtOther.get(rO);
+				String line=rS+" "+rO+" "+struct.sharedXY+" "+struct.originalSamples+" "+struct.pcaDenominatorSourceToTargetWithCounterPartForObject;
+				System.out.println(line);
+				writer.write(line+"\n");
+				hasSolutions=true;
+				writer.flush();
+			}
+			if(hasSolutions) {
+				System.out.println();
+				writer.write("\n");
+				writer.flush();
+			}
+		}
+		writer.close();
+	}
+	
+	
+
+	
+	public static final HashMap<Relation, HashMap<Relation, Alignment>>  read_TtoS_results(String dir, KB S, HashSet<Relation> relSetAtS,  KB T) throws Exception{
+		//read the relations for the target, in the correct direction according to the functionality
+		String fileWithResults = dir +"_gold/" +T.name+ "->" + S.name +"/" + T.name+"_"+S.name + "_align.txt";
+		
+		File f = new File(fileWithResults);
+		if (!f.exists()) {
+			System.err.println("  File does not exit " + fileWithResults);
+			System.exit(0);
+		} 
+
+		HashMap<Relation, HashMap<Relation, Alignment>>  StoT_partialResults= new HashMap<Relation, HashMap<Relation, Alignment>> ();
+		
+		BufferedReader pairReader = new BufferedReader(new InputStreamReader(new FileInputStream(fileWithResults), "UTF8"));
+		String line = null;
+		while ((line = pairReader.readLine()) != null) {
+			if (line.isEmpty()) continue;
+		
+			//System.out.println(line);
+			
+			String[] e = line.split(separatorSpace);
+			Relation rT=Relation.getRelationFromStringDesc(e[0]);
+			Relation rS=Relation.getRelationFromStringDesc(e[1]);
+			
+			int shared = Integer.valueOf(e[2]);
+			
+			/** inverse the rS (and rT) **/
+			if(! relSetAtS.contains(rS)){
+				   rS=new Relation(rS.uri, !rS.isDirect);
+				   rT=new Relation(rT.uri, !rT.isDirect);
+				   if(!relSetAtS.contains(rS)) {
+					   System.err.println("Big problem: I couldn't find rel "+rS);
+					   System.exit(0);
+				   }
+			}
+		 
+			Alignment a=new Alignment(0);  //the number of original samples is unknown 
+			a.sharedXY=shared;
+			
+			/** insert the alignment in the partial results**/
+			HashMap<Relation, Alignment> alignmentsFor_rS=StoT_partialResults.get(rS);
+			if(alignmentsFor_rS==null) {
+				alignmentsFor_rS= new HashMap<Relation, Alignment> ();
+				StoT_partialResults.put(rS, alignmentsFor_rS);
+			}
+			
+			if(alignmentsFor_rS.containsKey(rT)){
+				   System.err.println("There are two lines that align "+rS+" and "+rT);
+				   System.exit(0);
+			}
+			
+			alignmentsFor_rS.put(rT, a);
+		}
+		
+		pairReader.close();
+		return StoT_partialResults;
+	}
+
+	
+	
+	/*****************************************************************/
+	/**  Alignment Class**/
+	/*****************************************************************/
+	public static class  Alignment{
+		public int sharedXY=0;
+		public int originalSamples=0;
+		public int pcaDenominatorSourceToTarget=0;
+		public int pcaDenominatorSourceToTargetWithCounterPartForObject=0;
+		
+		public Alignment(int originalSamples){
+			this.originalSamples=originalSamples;
+		}
+	}
+	
+	public static void main(String[] args) throws Exception {	
+	
+		String dir = "/Users/adi/Dropbox/DBP/feb-sofya/"; //"feb-sofya/";
+		String tmpDir ="/Users/adi/Dropbox/DBP/"; // "tmpDir/";  
+
+		KB yago = new KB("yago", "http://s6.adam.uvsq.fr:8892/sparql", "http://yago-knowledge.org");
+		KB dbpedia = new KB("dbpedia", "http://s6.adam.uvsq.fr:8892/sparql", "http://dbpedia.org");
+		KB freebase = new KB("freebase", "http://s6.adam.uvsq.fr:8892/sparql", "http://rdf.freebase.com");
+		
+		KB S=freebase;
+		KB T=yago;
+		//align(dir, tmpDir, S, T);
+		
+		alignByCompletingPartialResults(dir, tmpDir, S, T);
+		
+		//test(target);
+		//System.exit(0);
+	}
+	
 	
 	public static final HashMap<Relation,  Integer> testShared(KB target, ArrayList<String> lines, String domainAtSource) throws Exception{
 		 HashMap<Relation,  Integer> overlapp=new HashMap<Relation,  Integer> ();
@@ -512,64 +712,5 @@ public class GetOvelappingRels {
 				
 			}	
 		 return overlapp;
-	}
-	
-	
-	
-	public static void main(String[] args) throws Exception {	
-	
-		String dir = "feb-sofya/"; //"/Users/adi/Dropbox/DBP/feb-sofya/";
-		String tmpDir = "tmpDir/";  // "/Users/adi/Dropbox/DBP/";
-
-		KB yago = new KB("yago", "http://s6.adam.uvsq.fr:8892/sparql", "http://yago-knowledge.org");
-		KB dbpedia = new KB("dbpedia", "http://s6.adam.uvsq.fr:8892/sparql", "http://dbpedia.org");
-		KB freebase = new KB("freebase", "http://s6.adam.uvsq.fr:8892/sparql", "http://rdf.freebase.com");
-		
-		KB S=dbpedia;
-		KB T=freebase;
-		
-	//	test(target);
-	// System.exit(0);
-	
-		String fileWithRelations = dir + S.name + "/" + S.name + "_functionality_ee.txt";
-		ArrayList<Relation> relations = loadRelationsFromFilesWithFunctionality(fileWithRelations, true, 0, 4, 5);
-
-		String fileWithPairs = tmpDir + "pairs.txt";
-		String fileWithAlignements =  tmpDir +S.name+"_"+T.name+"_align_2.txt";
-		int tuplesPerQuery = 500; // changed!!!
-		
-		BufferedWriter writer = new BufferedWriter(
-				new OutputStreamWriter(new FileOutputStream(fileWithAlignements), "UTF-8"));
-	
-		String header="source target sharedXY originalXY pcaDenRelDirectCheckCounterpartForObject ";
-		System.out.println(header);
-		for (Relation r : relations) {
-			System.out.println(r);
-			extractPairs(r, S, T.resourcesDomain,  fileWithPairs);
-			HashMap<Relation,  Alignment> relationsAtOther=iterateAndComputeSharedPairs(2*tuplesPerQuery, fileWithPairs,  T);
-			
-			//System.exit(0);
-			if(relationsAtOther.keySet().isEmpty()) continue;
-			iterateAndComputePCADenominator_V2(tuplesPerQuery, fileWithPairs, T, S.resourcesDomain, relationsAtOther);
-			
-			boolean hasSolutions=false;
-			for(Relation rO:relationsAtOther.keySet()){
-				Alignment struct=relationsAtOther.get(rO);
-				String line=r+" "+rO+" "+struct.sharedXY+" "+struct.originalSamples+" "+struct.pcaDenominatorSourceToTargetWithCounterPartForObject;
-				System.out.println(line);
-				writer.write(line+"\n");
-				hasSolutions=true;
-				writer.flush();
-			}
-			if(hasSolutions) {
-				System.out.println();
-				writer.write("\n");
-				writer.flush();
-			}
-
-			
-		}
-		writer.close();
-
 	}
 }

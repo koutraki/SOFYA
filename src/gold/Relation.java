@@ -1,6 +1,7 @@
 package gold;
 
 import java.text.DecimalFormat;
+import java.util.Comparator;
 
 public class Relation {
 
@@ -32,13 +33,17 @@ public class Relation {
 			this.isDirect=isDirect;
 		}
 		
+		
+		public static final Relation getRelationFromStringDesc(String name) throws Exception{
+			return name.endsWith("-")?new Relation(name.substring(0, name.length()-1), false): new Relation(name, true);
+		}
+		
 		@Override
 		public boolean equals(Object o){
 			Relation r=(Relation)o;
 			return uri.equalsIgnoreCase(r.uri) && r.isDirect==isDirect;
 		}
 		
-
 		@Override
 		public int hashCode(){
 			return (uri+isDirect).hashCode();
@@ -50,8 +55,15 @@ public class Relation {
 		}
 		
 		public String toStringFull(){
-			return uri+((isDirect)?"":"-")+"  funct="+df.format(funct)+" invFunct="+df.format(invFunct);
+			return uri+((isDirect)?"":"-")+"  funct="+df.format(funct)+" invFunct="+df.format(invFunct)+" noTuples="+((int)tupleNo);
 		}
 		
-		
+		public static final class RelationCompBasedOnTupleNo implements Comparator<Relation> {
+
+			@Override
+			public int compare(Relation o1, Relation o2) {
+				return (int) (o1.tupleNo-o2.tupleNo);
+			}
+			
+		}
 }
