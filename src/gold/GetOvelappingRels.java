@@ -517,7 +517,7 @@ public class GetOvelappingRels {
 	
 	
 	public static void main(String[] args) throws Exception {	
-		// dir="/Users/mary/Dropbox/feb-sofya/";//"/Users/adi/Dropbox/DBP/feb-sofya/dbpedia/";
+	
 		String dir = "feb-sofya/"; //"/Users/adi/Dropbox/DBP/feb-sofya/";
 		String tmpDir = "tmpDir/";  // "/Users/adi/Dropbox/DBP/";
 
