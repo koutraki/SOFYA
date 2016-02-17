@@ -517,23 +517,25 @@ public class GetOvelappingRels {
 	
 	
 	public static void main(String[] args) throws Exception {	
-		// String
 		// dir="/Users/mary/Dropbox/feb-sofya/";//"/Users/adi/Dropbox/DBP/feb-sofya/dbpedia/";
 		String dir = "feb-sofya/"; //"/Users/adi/Dropbox/DBP/feb-sofya/";
 		String tmpDir = "tmpDir/";  // "/Users/adi/Dropbox/DBP/";
 
-		KB source = new KB("yago", "http://s6.adam.uvsq.fr:8892/sparql", "http://yago-knowledge.org");
-	//	KB target = new KB("dbpedia", "http://s6.adam.uvsq.fr:8892/sparql", "http://dbpedia.org");
-		KB target = new KB("freebase", "http://s6.adam.uvsq.fr:8892/sparql", "http://rdf.freebase.com");
+		KB yago = new KB("yago", "http://s6.adam.uvsq.fr:8892/sparql", "http://yago-knowledge.org");
+		KB dbpedia = new KB("dbpedia", "http://s6.adam.uvsq.fr:8892/sparql", "http://dbpedia.org");
+		KB freebase = new KB("freebase", "http://s6.adam.uvsq.fr:8892/sparql", "http://rdf.freebase.com");
+		
+		KB S=dbpedia;
+		KB T=freebase;
 		
 	//	test(target);
 	// System.exit(0);
 	
-		String fileWithRelations = dir + source.name + "/" + source.name + "_functionality_ee.txt";
+		String fileWithRelations = dir + S.name + "/" + S.name + "_functionality_ee.txt";
 		ArrayList<Relation> relations = loadRelationsFromFilesWithFunctionality(fileWithRelations, true, 0, 4, 5);
 
 		String fileWithPairs = tmpDir + "pairs.txt";
-		String fileWithAlignements =  tmpDir +source.name+"_"+target.name+"_align_2.txt";
+		String fileWithAlignements =  tmpDir +S.name+"_"+T.name+"_align_2.txt";
 		int tuplesPerQuery = 500; // changed!!!
 		
 		BufferedWriter writer = new BufferedWriter(
@@ -543,12 +545,12 @@ public class GetOvelappingRels {
 		System.out.println(header);
 		for (Relation r : relations) {
 			System.out.println(r);
-			extractPairs(r, source, target.resourcesDomain,  fileWithPairs);
-			HashMap<Relation,  Alignment> relationsAtOther=iterateAndComputeSharedPairs(2*tuplesPerQuery, fileWithPairs,  target);
+			extractPairs(r, S, T.resourcesDomain,  fileWithPairs);
+			HashMap<Relation,  Alignment> relationsAtOther=iterateAndComputeSharedPairs(2*tuplesPerQuery, fileWithPairs,  T);
 			
 			//System.exit(0);
 			if(relationsAtOther.keySet().isEmpty()) continue;
-			iterateAndComputePCADenominator_V2(tuplesPerQuery, fileWithPairs, target, source.resourcesDomain, relationsAtOther);
+			iterateAndComputePCADenominator_V2(tuplesPerQuery, fileWithPairs, T, S.resourcesDomain, relationsAtOther);
 			
 			boolean hasSolutions=false;
 			for(Relation rO:relationsAtOther.keySet()){
