@@ -355,17 +355,18 @@ public class GetOverlappingRelsEL {
 		 
 		 String querystr=" PREFIX owl: <http://www.w3.org/2002/07/owl#> \n"
 				 +"select ?r ?d  (COUNT(*) as ?n)   where {graph <" + target.name + "> {\n";
-		 querystr+=" values (?x ?y) {\n";
+		 querystr+=" values (?x ?ys) {\n";
 		 		for(String line:lines){
 		 				line=line.trim();
 		 				String[] parts=line.split(separatorForELPairs);
 		 				querystr+="\t (  "+"<"+parts[0]+">  "+"  \""+parts[1]+"\""+" ) \n";
 			}
 			querystr+="\t}\n";
-			querystr+="";
+			querystr+="  ?x ?r ?y";
+			querystr+="	FILTER regex(?y, ?ys, \"i\" ). ";
 			querystr+="}} group by ?r ?d  ";
-			
-			//System.out.println("Relations with overlapp "+querystr);
+		
+			//System.out.println("Relations with overlap "+querystr);
 			
 			QueryEngineHTTP query = new QueryEngineHTTP(target.endpoint, querystr);
 			ResultSet rst = query.execSelect();
