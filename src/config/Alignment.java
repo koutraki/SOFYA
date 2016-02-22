@@ -3,6 +3,7 @@ package config;
 import java.text.DecimalFormat;
 import java.util.Comparator;
 
+import gold.Relation;
 import preprocessing.ComputingPCAandCWA.AlignmentPCA_CWA;
 
 
@@ -11,8 +12,8 @@ public class Alignment {
 
 	public static final DecimalFormat df = new DecimalFormat("0.00");
 	
-	public final String rS;
-	public final String rT;
+	public final Relation rS;
+	public final Relation rT;
 	
 	
 	public final int sharedXY;
@@ -23,7 +24,7 @@ public class Alignment {
 	public final double cwa;
 
 	
-	public Alignment(String rS, String rT, int sharedXY, int originalSamples, int pcaDenominator){
+	public Alignment(Relation rS, Relation rT, int sharedXY, int originalSamples, int pcaDenominator){
 		this.sharedXY=sharedXY;
 		this.originalSamples=originalSamples;
 		this.pcaDenominator=pcaDenominator;
