@@ -8,7 +8,10 @@ import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map.Entry;
+
 import config.Alignment;
 import gold.GetOvelappingRels;
 import gold.KB;
@@ -80,12 +83,17 @@ public class CompareWithParis {
 	
 				Integer sharedXY=Integer.valueOf(e[2].trim());
 				Integer originalSamples=Integer.valueOf(e[3].trim());
-				Integer PCA_denominator=Integer.valueOf(e[3].trim());
+				Integer PCA_denominator=Integer.valueOf(e[4].trim());
 				
 				Relation relS=getRelationFromString(e[0].trim());
 				Relation relT=getRelationFromString(e[1].trim());
+				
+				//System.out.println(line);
+				
+				boolean isUndecided=line.contains("?");
+				String comment=(line.contains("?") && (line.split("\\?").length>1))?line.split("\\?")[1].trim():" ";
 						
-				Alignment align=new Alignment(relS, relT, sharedXY, originalSamples, PCA_denominator);
+				AlignmentWithComments align=new AlignmentWithComments(relS, relT, sharedXY, originalSamples, PCA_denominator, isUndecided, comment);
 				
 				if(allAlignements.contains(align)) {
 					System.out.println(" Alignment : "+line+" is a double ");
@@ -153,25 +161,66 @@ public class CompareWithParis {
 		HashSet<Alignment>  parisAlignmentsSourceToTarget=filterAlignmentsBasedOnSource(source.name+":", target.name+":", parisAlignments);
 		HashSet<Alignment>  parisEEAlignmentsSourceToTarget=eliminateRelationsAtSource(parisAlignmentsSourceToTarget, shortNamesRelationsEEAtSource);
 		
-		
-		
 		String dirWithNewManualGoldSet="/Users/adi/Dropbox/DBP/feb-sofya/_gold/";
 		String fileWithNewManualAlignments=  dirWithNewManualGoldSet+"_"+user+"/"+user+"_"+source.name+"_"+target.name+"_pca_cwa.txt";
 		HashSet<Alignment>  newManualAlignments=loadNewManualGoldSet(fileWithNewManualAlignments, true);
 		
 		HashSet<Alignment>  onlyParis=difference(parisEEAlignmentsSourceToTarget, newManualAlignments);
-		
-		 ArrayList<Alignment> onlyParisList= new ArrayList<Alignment>();
-		 onlyParisList.addAll(onlyParis);
-		 Collections.sort(onlyParisList, new Alignment.Comp_Alignment_Shared_Based());
-		 
-		 System.out.println("Only paris list: ");
+		System.out.println("Only PARIS gold alignments: ");
 		for(Alignment a: onlyParis){
 			System.out.println("        "+a.toStringWithShared());
 		}
 		
+		
+		System.out.println("Only NEW manual gold alignments: ");
+		HashSet<Alignment>  onlyNewManual=difference(newManualAlignments, parisEEAlignmentsSourceToTarget);
+		/** partition the results according to the target relation **/
+		HashMap<Relation, ArrayList<AlignmentWithComments>>  partionBasedOnTarget=new HashMap<Relation, ArrayList<AlignmentWithComments>>();
+		for(Alignment a: onlyNewManual){
+			AlignmentWithComments ac=(AlignmentWithComments)a;
+			ArrayList<AlignmentWithComments> listForRT=partionBasedOnTarget.get(a.rT);
+			if(listForRT==null){
+				listForRT=new ArrayList<AlignmentWithComments>();
+				partionBasedOnTarget.put(ac.rT, listForRT);
+			}
+			listForRT.add(ac);
+			
+		}
+		
+
+		
+		for(Entry<Relation, ArrayList<AlignmentWithComments>> e: partionBasedOnTarget.entrySet()){
+			ArrayList<AlignmentWithComments> onlyNewManualListForRT= e.getValue();
+			Collections.sort(onlyNewManualListForRT, new Alignment.Comp_Alignment_Shared_Based());
+			
+			for(AlignmentWithComments ac: onlyNewManualListForRT){
+				System.out.println(ac.toStringAll());
+			}
+			System.out.println();
+		}
+		
+		
+		
 	}
 	
+	
+	public static final class AlignmentWithComments extends Alignment{
+
+		boolean isUndecided=false;
+		String comment=" ";
+		
+		public AlignmentWithComments(Relation rS, Relation rT, int sharedXY, int originalSamples, int pcaDenominator, boolean isUndecided,  String comment) {
+			super(rS, rT, sharedXY, originalSamples, pcaDenominator);	
+			this.isUndecided=isUndecided;
+			this.comment=comment;
+		}
+	
+		@Override
+		public final String toStringAll(){
+			return super.toStringAll()+(isUndecided?" ? ":" ")+comment; 
+		}
+		
+	}
 	
 	
 }

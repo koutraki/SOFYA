@@ -41,8 +41,8 @@ public class Alignment {
 		return  rS + " \t " + rT;
 	}
 	
-	public final String toStringAll(){
-				return  rS + " \t " + rT+ "\t"+ sharedXY+ "\t"+ originalSamples+ "\t"+ pcaDenominator+ "\t"+ df.format(pca)+ "\t" +df.format(cwa);
+	public  String toStringAll(){
+				return  rS + " \t  " + rT+ "\t"+ sharedXY+ "\t"+ originalSamples+ "\t"+ pcaDenominator+ "\t"+ df.format(pca)+ "\t" +df.format(cwa);
 	}
 	
 	public final String toStringWithShared(){
