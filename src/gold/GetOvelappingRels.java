@@ -530,7 +530,7 @@ public class GetOvelappingRels {
 	public static final void alignByCompletingPartialResults(String dir, String tmpDir, KB S, KB T) throws Exception{
 		String fileWithPairs = tmpDir + "pairs.txt";
 		String fileWithAlignements =  tmpDir +S.name+"_"+T.name+"_align_2.txt";
-		int tuplesPerQuery = 500; // changed!!!
+		int tuplesPerQuery = 200; // changed!!!
 		
 		
 		/** read the relations for the target, in the correct direction according to the functionality **/
@@ -586,7 +586,8 @@ public class GetOvelappingRels {
 	
 	public static final HashMap<Relation, HashMap<Relation, Alignment>>  read_TtoS_results(String dir, KB S, HashSet<Relation> relSetAtS,  KB T) throws Exception{
 		//read the relations for the target, in the correct direction according to the functionality
-		String fileWithResults = dir +"_gold/" +T.name+ "->" + S.name +"/" + T.name+"_"+S.name + "_align.txt";
+	//	String fileWithResults = dir +"_gold/" +T.name+ "->" + S.name +"/" + T.name+"_"+S.name + "_align.txt";
+		String fileWithResults = dir +"_gold/" + T.name+"_"+S.name + "_align_2.txt";
 		
 		File f = new File(fileWithResults);
 		if (!f.exists()) {
@@ -659,8 +660,8 @@ public class GetOvelappingRels {
 	
 	public static void main(String[] args) throws Exception {	
 	
-		String dir = "/Users/adi/Dropbox/DBP/feb-sofya/"; //"feb-sofya/";
-		String tmpDir ="/Users/adi/Dropbox/DBP/"; // "tmpDir/";  
+		String dir ="feb-sofya/"; //"/Users/adi/Dropbox/DBP/feb-sofya/"; //"feb-sofya/";
+		String tmpDir = "tmpDir/"; //"/Users/adi/Dropbox/DBP/"; // "tmpDir/";  
 
 		KB yago = new KB("yago", "http://s6.adam.uvsq.fr:8892/sparql", "http://yago-knowledge.org");
 		KB dbpedia = new KB("dbpedia", "http://s6.adam.uvsq.fr:8892/sparql", "http://dbpedia.org");
