@@ -111,7 +111,7 @@ public class ComputingPCAandCWA {
 		
 		computePCA_CWA_fromNominatorAndDenominatorValues(rootDir, outputDir, user,   freebase, yago);
 		
-		
+		    
 	}
 
 	
