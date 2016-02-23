@@ -101,13 +101,15 @@ public class ComputingPCAandCWA {
 		KB dbpedia = new KB("dbpedia",null, "http://dbpedia.org/ontology/");
 		KB freebase = new KB("freebase",null, "http://rdf.freebase.com/ns/");
 		
-		String outputDir="/Users/adi/Dropbox/DBP/feb-sofya/_gold/_user/";
-		computePCA_CWA_fromNominatorAndDenominatorValues(rootDir, outputDir, "user", dbpedia, yago);
-		computePCA_CWA_fromNominatorAndDenominatorValues(rootDir, outputDir, "user",  yago, dbpedia);
+		String user="user";
+		String outputDir="/Users/adi/Dropbox/DBP/feb-sofya/_gold/_"+user+"/";
+		/**
+		computePCA_CWA_fromNominatorAndDenominatorValues(rootDir, outputDir, user, dbpedia, yago);
+		computePCA_CWA_fromNominatorAndDenominatorValues(rootDir, outputDir, user,  yago, dbpedia);
+		computePCA_CWA_fromNominatorAndDenominatorValues(rootDir, outputDir, user, dbpedia, freebase);
+		computePCA_CWA_fromNominatorAndDenominatorValues(rootDir, outputDir, user,  yago, freebase); **/
 		
-		computePCA_CWA_fromNominatorAndDenominatorValues(rootDir, outputDir, "user", dbpedia, freebase);
-		
-		computePCA_CWA_fromNominatorAndDenominatorValues(rootDir, outputDir, "user",  yago, freebase);
+		computePCA_CWA_fromNominatorAndDenominatorValues(rootDir, outputDir, user,   freebase, yago);
 		
 		
 	}
