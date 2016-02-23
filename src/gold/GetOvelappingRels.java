@@ -527,10 +527,10 @@ public class GetOvelappingRels {
 	/*************************************************************************************************************/
 	/**  SPEED-UP PROCESSING BY GETTING PARTIAL RESULTS FOR S TO T FROM T TO S **/
 	/**************************************************************************************************************/
-	public static final void alignByCompletingPartialResults(String dir, String tmpDir, KB S, KB T) throws Exception{
+	public static final void alignByCompletingPartialResults(String dir, String tmpDir, KB S, KB T, String lastProcessedOK) throws Exception{
 		String fileWithPairs = tmpDir + "pairs.txt";
 		String fileWithAlignements =  tmpDir +S.name+"_"+T.name+"_align_2.txt";
-		int tuplesPerQuery = 500; // changed!!!
+		int tuplesPerQuery = 200; // changed!!!
 		
 		
 		/** read the relations for the target, in the correct direction according to the functionality **/
@@ -552,7 +552,13 @@ public class GetOvelappingRels {
 		String header="source target sharedXY originalXY pcaDenRelDirectCheckCounterpartForObject ";
 		System.out.println(header);
 		
+		boolean startProcessing=(lastProcessedOK==null)?true:false;
 		for (Relation rS : sortedRelations) {
+			if(! startProcessing){
+				if(rS.toString().equals(lastProcessedOK)) startProcessing=true;
+				continue;
+			}
+			
 			if(! StoT_partialResults.containsKey(rS)) continue;
 			HashMap<Relation, Alignment> relationsAtOther=StoT_partialResults.get(rS);
 			if(relationsAtOther.keySet().isEmpty()) continue;
@@ -586,7 +592,8 @@ public class GetOvelappingRels {
 	
 	public static final HashMap<Relation, HashMap<Relation, Alignment>>  read_TtoS_results(String dir, KB S, HashSet<Relation> relSetAtS,  KB T) throws Exception{
 		//read the relations for the target, in the correct direction according to the functionality
-		String fileWithResults = dir +"_gold/" +T.name+ "->" + S.name +"/" + T.name+"_"+S.name + "_align.txt";
+	//	String fileWithResults = dir +"_gold/" +T.name+ "->" + S.name +"/" + T.name+"_"+S.name + "_align.txt";
+		String fileWithResults = dir +"_gold/" + T.name+"_"+S.name + "_align_2.txt";
 		
 		File f = new File(fileWithResults);
 		if (!f.exists()) {
@@ -614,8 +621,10 @@ public class GetOvelappingRels {
 				   rS=new Relation(rS.uri, !rS.isDirect);
 				   rT=new Relation(rT.uri, !rT.isDirect);
 				   if(!relSetAtS.contains(rS)) {
-					   System.err.println("Big problem: I couldn't find rel "+rS);
-					   System.exit(0);
+					   System.err.println("Relation removed from functionality file: "+rS);
+					   continue;
+					//   System.err.println("Big problem: I couldn't find rel "+rS);
+					//   System.exit(0);
 				   }
 			}
 		 
@@ -658,9 +667,12 @@ public class GetOvelappingRels {
 	}
 	
 	public static void main(String[] args) throws Exception {	
+		
+		
 	
-		String dir = "/Users/adi/Dropbox/DBP/feb-sofya/"; //"feb-sofya/";
-		String tmpDir ="/Users/adi/Dropbox/DBP/"; // "tmpDir/";  
+		
+		String dir ="feb-sofya/"; //"/Users/adi/Dropbox/DBP/feb-sofya/"; //"feb-sofya/";
+		String tmpDir = "tmpDir/"; //"/Users/adi/Dropbox/DBP/"; // "tmpDir/";  
 
 		KB yago = new KB("yago", "http://s6.adam.uvsq.fr:8892/sparql", "http://yago-knowledge.org");
 		KB dbpedia = new KB("dbpedia", "http://s6.adam.uvsq.fr:8892/sparql", "http://dbpedia.org");
@@ -670,7 +682,10 @@ public class GetOvelappingRels {
 		KB T=yago;
 		//align(dir, tmpDir, S, T);
 		
-		alignByCompletingPartialResults(dir, tmpDir, S, T);
+		String lastProcessedOK=(args.length==0)?null:args[0];
+		System.out.println("lastProcessedOK: "+lastProcessedOK);
+	//	System.exit(0);
+		alignByCompletingPartialResults(dir, tmpDir, S, T,  lastProcessedOK);
 		
 		//test(target);
 		//System.exit(0);
