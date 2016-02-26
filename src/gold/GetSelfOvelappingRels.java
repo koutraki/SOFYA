@@ -88,6 +88,7 @@ public class GetSelfOvelappingRels {
 			HashMap<Relation,  Integer> overlap=getSharedForRelation(kb, r);
 			
 			for(Entry<Relation,Integer> rT:overlap.entrySet()){
+				if(rT.getKey().equals(r)) continue;
 				String line=r+" \t  "+rT.getKey()+"  \t  "+rT.getValue();
 				System.out.println(line);
 				writer.write(line+"\n");
@@ -153,118 +154,6 @@ public class GetSelfOvelappingRels {
 	}
 	
 
-	
-	
-	/*************************************************************************************************************/
-	/**  SPEED-UP PROCESSING BY GETTING PARTIAL RESULTS FOR S TO T FROM T TO S **/
-	/**************************************************************************************************************/
-	public static final void alignByCompletingPartialResults(String dir, String tmpDir, KB S, KB T, String lastProcessedOK) throws Exception{
-		String fileWithPairs = tmpDir + "pairs.txt";
-		String fileWithAlignements =  tmpDir +S.name+"_"+T.name+"_align_2.txt";
-		int tuplesPerQuery = 200; // changed!!!
-		
-		
-		/** read the relations for the target, in the correct direction according to the functionality **/
-		String fileWithRelations = dir + S.name + "/" + S.name + "_functionality_ee.txt";
-		ArrayList<Relation> sortedRelations= new ArrayList<Relation>();
-		loadRelationsFromFilesWithFunctionality(sortedRelations, fileWithRelations, true, 0, 4, 5, 3);
-		//Collections.sort(sortedRelations, new Relation.RelationCompBasedOnTupleNo());
-		
-		
-		/** get the target to source results from the file **/
-		HashSet<Relation> relSetAtS=new HashSet<Relation>();
-		relSetAtS.addAll(sortedRelations);
-		HashMap<Relation, HashMap<Relation, SelfAlignment>>   StoT_partialResults= read_TtoS_results(dir, S, relSetAtS, T);
-		
-			
-		BufferedWriter writer = new BufferedWriter(
-				new OutputStreamWriter(new FileOutputStream(fileWithAlignements), "UTF-8"));
-	
-		String header="source target sharedXY originalXY pcaDenRelDirectCheckCounterpartForObject ";
-		System.out.println(header);
-		
-		boolean startProcessing=(lastProcessedOK==null)?true:false;
-		for (Relation rS : sortedRelations) {
-			if(! startProcessing){
-				if(rS.toString().equals(lastProcessedOK)) startProcessing=true;
-				continue;
-			}
-			
-			if(! StoT_partialResults.containsKey(rS)) continue;
-			HashMap<Relation, SelfAlignment> relationsAtOther=StoT_partialResults.get(rS);
-			if(relationsAtOther.keySet().isEmpty()) continue;
-			 
-			System.out.println(rS);
-			
-		}
-		writer.close();
-	}
-	
-	
-
-	
-	public static final HashMap<Relation, HashMap<Relation, SelfAlignment>>  read_TtoS_results(String dir, KB S, HashSet<Relation> relSetAtS,  KB T) throws Exception{
-		//read the relations for the target, in the correct direction according to the functionality
-	//	String fileWithResults = dir +"_gold/" +T.name+ "->" + S.name +"/" + T.name+"_"+S.name + "_align.txt";
-		String fileWithResults = dir +"_gold/" + T.name+"_"+S.name + "_align_2.txt";
-		
-		File f = new File(fileWithResults);
-		if (!f.exists()) {
-			System.err.println("  File does not exit " + fileWithResults);
-			System.exit(0);
-		} 
-
-		HashMap<Relation, HashMap<Relation, SelfAlignment>>  StoT_partialResults= new HashMap<Relation, HashMap<Relation, SelfAlignment>> ();
-		
-		BufferedReader pairReader = new BufferedReader(new InputStreamReader(new FileInputStream(fileWithResults), "UTF8"));
-		String line = null;
-		while ((line = pairReader.readLine()) != null) {
-			if (line.isEmpty()) continue;
-		
-			//System.out.println(line);
-			
-			String[] e = line.split(separatorSpace);
-			Relation rT=Relation.getRelationFromStringDesc(e[0]);
-			Relation rS=Relation.getRelationFromStringDesc(e[1]);
-			
-			int shared = Integer.valueOf(e[2]);
-			
-			/** inverse the rS (and rT) **/
-			if(! relSetAtS.contains(rS)){
-				   rS=new Relation(rS.uri, !rS.isDirect);
-				   rT=new Relation(rT.uri, !rT.isDirect);
-				   if(!relSetAtS.contains(rS)) {
-					   System.err.println("Relation removed from functionality file: "+rS);
-					   continue;
-					//   System.err.println("Big problem: I couldn't find rel "+rS);
-					//   System.exit(0);
-				   }
-			}
-		 
-			SelfAlignment a=new SelfAlignment(0);  //the number of original samples is unknown 
-			a.sharedXY=shared;
-			
-			/** insert the alignment in the partial results**/
-			HashMap<Relation, SelfAlignment> alignmentsFor_rS=StoT_partialResults.get(rS);
-			if(alignmentsFor_rS==null) {
-				alignmentsFor_rS= new HashMap<Relation, SelfAlignment> ();
-				StoT_partialResults.put(rS, alignmentsFor_rS);
-			}
-			
-			if(alignmentsFor_rS.containsKey(rT)){
-				   System.err.println("There are two lines that align "+rS+" and "+rT);
-				   System.exit(0);
-			}
-			
-			alignmentsFor_rS.put(rT, a);
-		}
-		
-		pairReader.close();
-		return StoT_partialResults;
-	}
-
-	
-	
 	/*****************************************************************/
 	/**  Alignment Class**/
 	/*****************************************************************/
@@ -289,17 +178,10 @@ public class GetSelfOvelappingRels {
 		KB freebase = new KB("freebase", "http://s6.adam.uvsq.fr:8892/sparql", "http://rdf.freebase.com");
 		
 		selfAlign(dir, tmpDir, freebase);
-		System.exit(0);
 		
 		
 		
-		String lastProcessedOK=(args.length==0)?null:args[0];
-		System.out.println("lastProcessedOK: "+lastProcessedOK);
-		
-		alignByCompletingPartialResults(dir, tmpDir, freebase, freebase,  lastProcessedOK);
-		
-		//test(target);
-		//System.exit(0);
+	
 	}
 	
 	
