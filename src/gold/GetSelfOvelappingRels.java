@@ -83,7 +83,6 @@ public class GetSelfOvelappingRels {
 		String header="source target sharedXY originalXY pcaDenRelDirectCheck ";
 		System.out.println(header);
 		for (Relation r : relations) {
-			
 			HashMap<Relation,  Integer> overlap=getSharedForRelation(kb, r);
 			
 			for(Entry<Relation,Integer> rT:overlap.entrySet()){
