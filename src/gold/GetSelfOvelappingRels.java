@@ -70,7 +70,7 @@ public class GetSelfOvelappingRels {
 	/*************************************************************************************************************/
 	/**  SIMPLE ALIGN **/
 	/**************************************************************************************************************/
-	public static final void selfAlign(String dir, String tmpDir, KB kb) throws Exception{
+	public static final void selfAlign(String dir, String tmpDir, KB kb, String fromRelation, int bulkSize) throws Exception{
 		String fileWithRelations = dir + kb.name + "/" + kb.name + "_functionality_ee.txt";
 		ArrayList<Relation> relations= new ArrayList<Relation>();
 		loadRelationsFromFilesWithFunctionality(relations, fileWithRelations, true, 0, 4, 5, 3);
@@ -82,8 +82,17 @@ public class GetSelfOvelappingRels {
 	
 		String header="source target sharedXY originalXY pcaDenRelDirectCheck ";
 		System.out.println(header);
+		
+		boolean start=(fromRelation==null)?true:false;
 		for (Relation r : relations) {
-			HashMap<Relation,  Integer> overlap=getSharedForRelation(kb, r);
+			if( ! start ){
+				if(r.toString().equals(fromRelation)) start=true;
+				continue;
+			}
+			
+			HashMap<Relation,  Integer> overlap=null;
+			if(r.tupleNo<6000)  overlap=getSharedForRelation(kb, r);
+			else getSharedForRelationByIteration(kb, r, bulkSize);
 			
 			for(Entry<Relation,Integer> rT:overlap.entrySet()){
 				if(rT.getKey().equals(r)) continue;
@@ -107,7 +116,7 @@ public class GetSelfOvelappingRels {
 		 HashMap<Relation,  Integer> overlapp=new HashMap<Relation,  Integer> ();
 		 
 		 String querystr="select ?r ?d  (COUNT(*) as ?n)   where {graph <" + kb.name + "> {\n";
-		    querystr+=(rS.isDirect)?" ?x <"+rS.uri+"> ?y. ":" ?y <"+rS.uri+"> ?x. ";
+		    querystr+=(rS.isDirect)?" ?x <"+rS.uri+"> ?y. ":" ?y <"+rS.uri+"> ?x. \n";
 			querystr+= getSubQueryForDirection(true);
 			querystr+=" UNION \n";
 			querystr+= getSubQueryForDirection(false);
@@ -137,7 +146,60 @@ public class GetSelfOvelappingRels {
 		 return overlapp;
 	}
 	
-
+	public static final HashMap<Relation,  Integer> getSharedForRelationByIteration(KB kb, Relation rS, int bulkSize ) throws Exception{
+		 HashMap<Relation,  Integer> overlapp=new HashMap<Relation,  Integer> ();
+		 
+		 int offset=0;
+		
+		 while(offset<rS.tupleNo){
+			 
+			 String querystr="select ?r ?d  (COUNT(*) as ?n)   where { ";
+			 querystr+= " graph <" + kb.name + "> ";
+			 querystr+="	 {\n";
+			 querystr+=" { select ?x ?y where { ";
+			 querystr+="\t "+((rS.isDirect)?" ?x <"+rS.uri+"> ?y. ":" ?y <"+rS.uri+"> ?x. ");
+			 querystr+=" }  order by ?x ?y  ";
+			 querystr+=(offset==0)?" ":" offset "+offset+" ";
+		
+			 querystr+=" limit "+((int)((offset+bulkSize<rS.tupleNo)?bulkSize:rS.tupleNo-offset))+"  ";
+			 offset+=bulkSize;
+			 querystr+=" } \n";
+			 
+			 querystr+= getSubQueryForDirection(true);
+			 querystr+=" UNION \n";
+			 querystr+= getSubQueryForDirection(false);
+			 querystr+="}} group by ?r ?d  ";
+			
+			System.out.println("Query for detecting overlapping relations: \n "+querystr);
+			
+			QueryEngineHTTP query = new QueryEngineHTTP(kb.endpoint, querystr);
+			ResultSet rst = query.execSelect();
+			if (rst != null) {
+				while (rst.hasNext()) {
+					QuerySolution qs = rst.next();
+					
+					String n= qs.get("?n").asLiteral().getString().trim();
+					int sharedXY=Integer.valueOf(n);
+					if(sharedXY==0) continue;
+					
+					RDFNode r = (RDFNode) qs.get("?r");
+					String d = qs.get("?d").asLiteral().getString().trim();
+					boolean dir=(d.equals("direct"))?true:false;
+					Relation rel=new Relation(r.toString(), dir);
+					
+					int existent=overlapp.containsKey(rel)?overlapp.get(rel):0;
+					overlapp.put(rel, new Integer(sharedXY+existent));
+				}
+			}else{
+				
+			}	
+			
+			
+		 }
+		 return overlapp;
+	}
+	
+	 
 
 	public static final String getSubQueryForDirection(boolean direction){
 		String query=" ";
@@ -156,7 +218,7 @@ public class GetSelfOvelappingRels {
 	/**  Alignment Class**/
 	/*****************************************************************/
 	public static class  SelfAlignment{
-		public int sharedXY=0;
+		public int sharedXY=0; 
 		public int originalSamples=0;
 		public int pcaDenominatorSourceToTarget=0;
 		
@@ -168,15 +230,15 @@ public class GetSelfOvelappingRels {
 	
 	public static void main(String[] args) throws Exception {	
 		
-		String dir ="/home/mary/Dropbox/feb-sofya/"; //"/home/mary/Dropbox/feb-sofya/"; //"feb-sofya/";
-		String tmpDir = "/home/mary/Dropbox/"; //"/Users/adi/Dropbox/DBP/"; // "tmpDir/";  
+		String dir ="/Users/adi/Dropbox/DBP/feb-sofya/"; //"/home/mary/Dropbox/feb-sofya/"; //"/home/mary/Dropbox/feb-sofya/"; //"feb-sofya/";
+		String tmpDir = "/Users/adi/Dropbox/DBP/";// "/home/mary/Dropbox/"; //"/Users/adi/Dropbox/DBP/"; // "tmpDir/";  
 
 		KB yago = new KB("yago", "http://s6.adam.uvsq.fr:8892/sparql", "http://yago-knowledge.org");
 		KB dbpedia = new KB("dbpedia", "http://s6.adam.uvsq.fr:8892/sparql", "http://dbpedia.org");
 		KB freebase = new KB("freebase", "http://s6.adam.uvsq.fr:8892/sparql", "http://rdf.freebase.com");
 		
-		selfAlign(dir, tmpDir, freebase);
-		
+		int bulkSize=1000;
+		selfAlign(dir, tmpDir, freebase, (args.length==0)?null:args[0], bulkSize);
 		
 		
 	
