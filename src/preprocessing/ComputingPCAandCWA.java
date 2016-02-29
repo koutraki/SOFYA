@@ -94,7 +94,6 @@ public class ComputingPCAandCWA {
 	}
 	
 	public static void main(String[] args) {
-		// TODO Auto-generated method stub
 		String rootDir="/Users/adi/Dropbox/DBP/feb-sofya/_gold/";
 	
 		KB yago = new KB("yago", null, "http://yago-knowledge.org/resource/");
