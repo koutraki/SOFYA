@@ -91,8 +91,8 @@ public class GetSelfOvelappingRels {
 			}
 			
 			HashMap<Relation,  Integer> overlap=null;
-			if(r.tupleNo<6000)  overlap=getSharedForRelation(kb, r);
-			else getSharedForRelationByIteration(kb, r, bulkSize);
+			if(r.tupleNo<5000)  overlap=getSharedForRelation(kb, r);
+			else overlap=getSharedForRelationByIteration(kb, r, bulkSize);
 			
 			for(Entry<Relation,Integer> rT:overlap.entrySet()){
 				if(rT.getKey().equals(r)) continue;
@@ -173,6 +173,7 @@ public class GetSelfOvelappingRels {
 			System.out.println("Query for detecting overlapping relations: \n "+querystr);
 			
 			QueryEngineHTTP query = new QueryEngineHTTP(kb.endpoint, querystr);
+			query.setTimeout(-100);
 			ResultSet rst = query.execSelect();
 			if (rst != null) {
 				while (rst.hasNext()) {
@@ -230,17 +231,24 @@ public class GetSelfOvelappingRels {
 	
 	public static void main(String[] args) throws Exception {	
 		
-		String dir ="/Users/adi/Dropbox/DBP/feb-sofya/"; //"/home/mary/Dropbox/feb-sofya/"; //"/home/mary/Dropbox/feb-sofya/"; //"feb-sofya/";
-		String tmpDir = "/Users/adi/Dropbox/DBP/";// "/home/mary/Dropbox/"; //"/Users/adi/Dropbox/DBP/"; // "tmpDir/";  
+		String dir ="feb-sofya/"; // "/Users/adi/Dropbox/DBP/feb-sofya/";  "/home/mary/Dropbox/feb-sofya/"; "/home/mary/Dropbox/feb-sofya/"; 
+		String tmpDir ="tmpDir/"; // "/Users/adi/Dropbox/DBP/";  "/home/mary/Dropbox/"; //"/Users/adi/Dropbox/DBP/"; 
 
 		KB yago = new KB("yago", "http://s6.adam.uvsq.fr:8892/sparql", "http://yago-knowledge.org");
 		KB dbpedia = new KB("dbpedia", "http://s6.adam.uvsq.fr:8892/sparql", "http://dbpedia.org");
 		KB freebase = new KB("freebase", "http://s6.adam.uvsq.fr:8892/sparql", "http://rdf.freebase.com");
 		
-		int bulkSize=1000;
-		selfAlign(dir, tmpDir, freebase, (args.length==0)?null:args[0], bulkSize);
+		int bulkSize=2000;
+		try{
+					selfAlign(dir, tmpDir, freebase, (args.length==0)?null:args[0], bulkSize);
+		}  catch(Exception e ){
+			  System.err.println(e.getMessage());
+			  e.printStackTrace();
+		}
 		
 		
+		//nohup java -cp "./lib/*:sofya_gold_fbTodbpedia.jar" gold.GetOvelappingRels http://rdf.freebase.com/ns/location.location.people_born_here- &
+
 	
 	}
 	

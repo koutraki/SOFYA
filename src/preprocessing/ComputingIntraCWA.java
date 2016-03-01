@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 
 import gold.GetOvelappingRels;
 import gold.KB;
@@ -22,7 +23,7 @@ public class ComputingIntraCWA {
 
 	
 	
-	public static final void comptuteCWA(KB kb, String fileWithFunctionality, String fileWithAlignments, String newFile) throws Exception {
+	public static final void comptuteCWA(KB kb, String fileWithFunctionality, String fileWithAlignments, String newFile, double thrs) throws Exception {
 	
 		abortIfFileDoesNotExist(fileWithFunctionality);
 		abortIfFileDoesNotExist(fileWithAlignments);
@@ -30,10 +31,16 @@ public class ComputingIntraCWA {
 		
 	     ArrayList<Relation> relations= new ArrayList<Relation>();
 		GetOvelappingRels.loadRelationsFromFilesWithFunctionality(relations,fileWithFunctionality, true, 0, 4, 5, 3);
-	
-	   
+		
+		// extract relation, tuple numbers since is needed further
+		HashMap<String, Integer> tupleNumber=new HashMap<String, Integer> ();
+		for(Relation r: relations){
+			tupleNumber.put(r.uri, new Integer((int)r.tupleNo));
+		}
+		relations.clear();
+		
 		BufferedReader alignReader = new BufferedReader(new InputStreamReader(new FileInputStream(fileWithAlignments),"UTF8"));
-		HashMap<Relation, ArrayList<AlignmentCWA>> allAlignements=new HashMap<Relation, ArrayList<AlignmentCWA>> ();
+	    HashSet<AlignmentCWA> allAlignements=new HashSet<AlignmentCWA>();
 		String line=null;
 		while ((line = alignReader.readLine()) != null) {
 				if(line.isEmpty()){ 
@@ -41,24 +48,22 @@ public class ComputingIntraCWA {
 				}
 				String[] e = line.split("\\s+");
 				
-				Relation rS=getRelationFromStringDescr(e[0].trim(), relations);
-				Relation rT=getRelationFromStringDescr(e[1].trim(), relations);
+				System.out.println(line);
 				
+				Relation rS=getRelationFromStringDescr(e[0].trim(), tupleNumber);
+				Relation rT=getRelationFromStringDescr(e[1].trim(), tupleNumber);
+				
+				if(rS.uri.equals(rT.uri) && rS.isDirect==!(rT.isDirect)) continue;
 		
 				int sharedXY=Integer.parseInt(e[2]);
-		
 				AlignmentCWA align=new AlignmentCWA(rS, rT, sharedXY);
 				
-				/** insert the alignment **/
-				ArrayList<AlignmentCWA> list=allAlignements.get(align.rS);
-				if(list==null){
-					list=new ArrayList<AlignmentCWA> ();
-					allAlignements.put(rS, list);
-				}else {
-					if(list.contains(align)) continue;
-				}
-				list.add(align);
+				 if(align.getDirectImplication()<thrs || align.getReverseImplication()<thrs) continue;
 				
+				
+				/** insert the alignment **/
+				if(allAlignements.contains(align)) continue;
+				allAlignements.add(align);		
 		}
 		alignReader.close();
 		
@@ -66,36 +71,28 @@ public class ComputingIntraCWA {
 		BufferedWriter pca_file=new BufferedWriter(new FileWriter(newFile));
 		pca_file.write("subRelation \t superRelation \t shared \t -->CWA \t  <--CWA \n");
 		
-		for(ArrayList<AlignmentCWA> list: allAlignements.values()){
-				Collections.sort(list, new Comp_AlignmentCWA());
-				for(AlignmentCWA align: list){
+		
+		ArrayList<AlignmentCWA> list=new ArrayList<AlignmentCWA>();
+		list.addAll(allAlignements);
+		Collections.sort(list, new Comp_AlignmentCWA());
+		for(AlignmentCWA align: list){
 						pca_file.write(align.toStringAll()+"\n");
 						pca_file.flush();
 						System.out.println(align.toStringAll());
 				}
-				pca_file.write("\n");
-				System.out.println();
-		}
-	
+					
 		pca_file.close(); 
 		
 	}
 	
-	public static final Relation getRelationFromStringDescr(String s, ArrayList<Relation> relations)throws Exception{
+	public static final Relation getRelationFromStringDescr(String s, HashMap<String, Integer> tupleNumber)throws Exception{
 	
-		Relation r=(s.endsWith("-"))?new Relation(s.substring(0,s.length()-1), false):new Relation(s, true);
-		int indexr=relations.indexOf(r);
-		if(indexr<0) {
-			int indexInv=relations.indexOf(new Relation(r.uri, !r.isDirect));
-			if( indexInv<0 ) {
-			System.err.println("Unknown relation "+r);
-			System.exit(0);
-			}
-			r.tupleNo=relations.indexOf(indexInv);
-			return r;
-		}
-		return relations.get(indexr);
+		String uri=(s.endsWith("-"))?s.substring(0,s.length()-1): s;
+		Relation r=(s.endsWith("-"))?new Relation(uri, false):new Relation(uri, true);
 		
+		r.tupleNo=tupleNumber.get(uri);
+		
+		return r;
 		
 	}
 	
@@ -139,13 +136,26 @@ public class ComputingIntraCWA {
 		}
 		
 		
+		
 		@Override
 		public boolean equals(Object other){
 			AlignmentCWA o=(AlignmentCWA)other;
-			return rS.equals(o.rS) && rT.equals(o.rT) || rS.equals(o.rT) && rT.equals(o.rS) ;
+		
+			return o.sharedXY==sharedXY && o.getSignature().equals(getSignature());
 		}
 		
 		
+		@Override
+		public int hashCode(){
+			return getSignature().hashCode();
+			
+		}
+		
+		public String getSignature(){
+			int minuses=((rS.isDirect)?0:-1)+((rT.isDirect)?0:-1);
+			if(minuses==-2) minuses=0;
+			return ((rS.uri.compareTo(rT.uri)<0)?rS.uri+" "+rT.uri:rT.uri+" "+rS.uri)+minuses;
+		}
 		
 	}
 	
@@ -153,9 +163,11 @@ public class ComputingIntraCWA {
 
 		@Override
 		public int compare(AlignmentCWA o1, AlignmentCWA o2) {
-			double directImplication = -(o1.getDirectImplication()-o2.getDirectImplication());
-			if(directImplication!=0) return (int)directImplication*100000;
-			return (int) (-(o1.getReverseImplication()-o2.getReverseImplication()*100000));
+			int directImplication = (int)(-(o1.getDirectImplication()-o2.getDirectImplication())*100000);
+			if(directImplication!=0) return directImplication;
+			int inverseImplication =(int) ((-(o1.getReverseImplication()-o2.getReverseImplication())*100000));
+			if(inverseImplication!=0) return  inverseImplication;
+			return (int)(o1.rS.tupleNo-o2.rS.tupleNo);
 		}
 
 		
@@ -172,9 +184,9 @@ public class ComputingIntraCWA {
 		
 		String dir="/Users/adi/Dropbox/DBP/feb-sofya/";
 		String fileWithFunctionality = dir + kb.name + "/" + kb.name + "_functionality_ee.txt";
-		String fileWithAlignments=dir + kb.name + "/" + kb.name + "_"+ kb.name +"_align_part_1.txt";
-		String newFile=dir + kb.name + "/" + kb.name + "_"+ kb.name +"_align_CWA_part_1.txt";	
-		comptuteCWA(kb,  fileWithFunctionality, fileWithAlignments, newFile);
+		String fileWithAlignments=dir + kb.name + "/" + kb.name + "_"+ kb.name +"_align.txt";
+		String newFile=dir + kb.name + "/" + kb.name + "_"+ kb.name +"_align_CWA.txt";	
+		comptuteCWA(kb,  fileWithFunctionality, fileWithAlignments, newFile, 0.9);
 	}
 	
 }
