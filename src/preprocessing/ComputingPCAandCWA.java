@@ -45,8 +45,6 @@ public class ComputingPCAandCWA {
 				
 				String rS=getShortFormRelation(e[0].trim(), source);
 				String rT=getShortFormRelation(e[1].trim(), target);
-				
-							
 				int sharedXY=Integer.parseInt(e[2]);
 				int originalSamples=Integer.parseInt(e[3]);
 				int pcaDenominator=Integer.parseInt(e[4]);
@@ -96,7 +94,6 @@ public class ComputingPCAandCWA {
 	}
 	
 	public static void main(String[] args) {
-		// TODO Auto-generated method stub
 		String rootDir="/Users/adi/Dropbox/DBP/feb-sofya/_gold/";
 	
 		KB yago = new KB("yago", null, "http://yago-knowledge.org/resource/");
