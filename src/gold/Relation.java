@@ -59,11 +59,16 @@ public class Relation {
 		}
 		
 		public static final class RelationCompBasedOnTupleNo implements Comparator<Relation> {
-
 			@Override
 			public int compare(Relation o1, Relation o2) {
 				return (int) (o1.tupleNo-o2.tupleNo);
 			}
-			
+		}
+		
+		public static final class RelationCompBasedOnTupleNoDesc implements Comparator<Relation> {
+			@Override
+			public int compare(Relation o1, Relation o2) {
+				return (int) (-(o1.tupleNo-o2.tupleNo));
+			}
 		}
 }

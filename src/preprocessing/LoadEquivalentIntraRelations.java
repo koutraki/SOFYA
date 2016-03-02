@@ -38,7 +38,6 @@ public class LoadEquivalentIntraRelations {
 				System.out.println("Symetric relations :   "+line);
 			}
 		
-			
 			AlignmentCWA align=new AlignmentCWA(rS, rT, Integer.valueOf(e[2]));
 
 			addToList(mapOnFirstRel, rS.uri, align);
@@ -60,11 +59,10 @@ public class LoadEquivalentIntraRelations {
 	
 	
 	/** this function returns the names of the target relations that do not appeat as source relations **/
-	public static final void getRelationNamesThatCanBeSkipedSinceEquivalent(HashMap<String, ArrayList<ComputingIntraCWA.AlignmentCWA>> mapOnFirstRel, HashMap<String, ArrayList<ComputingIntraCWA.AlignmentCWA>> mapOnSecondRelation) throws Exception {
+	public static final HashSet<String>  getRelationNamesThatCanBeSkipedSinceEquivalent(HashMap<String, ArrayList<ComputingIntraCWA.AlignmentCWA>> mapOnFirstRel, HashMap<String, ArrayList<ComputingIntraCWA.AlignmentCWA>> mapOnSecondRelation) throws Exception {
 	    HashSet<String> relationsCanCanBeSkipped=new HashSet<String>();
 		
 		Iterator<String> targetRelations=mapOnSecondRelation.keySet().iterator();
-		
 		
 		while(targetRelations.hasNext()){
 			String target=targetRelations.next();
@@ -72,32 +70,43 @@ public class LoadEquivalentIntraRelations {
 			if(mapOnFirstRel.containsKey(target)){
 				System.out.println("Target which appears as source: "+target+"     tupleNo="+((int)mapOnFirstRel.get(target).get(0).rS.tupleNo));
 			}
-			
+			else {
+				relationsCanCanBeSkipped.add(target);
+			}
 		}
-		
-		
+		return relationsCanCanBeSkipped;
 	}
 	
 	public static final Relation getRelationFromStringDescr(String s)throws Exception{
 		
 		String uri=(s.endsWith("-"))?s.substring(0,s.length()-1): s;
 		Relation r=(s.endsWith("-"))?new Relation(uri, false):new Relation(uri, true);
-		
-		return r;
-		
+		return r;	
 	}
 	
 	
-	public static final void abortIfFileDoesNotExist(String pathToFile){
+	public static final boolean doesFileExist(String pathToFile){
 		File f=new File(pathToFile);
 		if(!f.exists()) {
 			System.err.println("  File does not exit "+pathToFile);
-			System.exit(0);
+			return false;
 		}else {
-			/** System.out.println(" Load : "+file);**/
+			return true;
 		}
 	}
 
+	public static final HashSet<String>  getSkipRelations(KB kb, String rootDir) throws Exception{
+		String fileWithQuivalences=rootDir+kb.name+"/"+kb.name+"_"+kb.name+"_equi_ee.txt";
+		boolean exist=doesFileExist(fileWithQuivalences);
+		if(!exist) return new HashSet<String>  ();
+		
+		HashMap<String, ArrayList<ComputingIntraCWA.AlignmentCWA>> mapOnFirstRel= new HashMap<String, ArrayList<ComputingIntraCWA.AlignmentCWA>> (); 
+		HashMap<String, ArrayList<ComputingIntraCWA.AlignmentCWA>> mapOnSecondRelation = new HashMap<String, ArrayList<ComputingIntraCWA.AlignmentCWA>> ();
+		loadEquivalentRelations(mapOnFirstRel, mapOnSecondRelation, fileWithQuivalences, true);
+		HashSet<String>  skipRel=getRelationNamesThatCanBeSkipedSinceEquivalent(mapOnFirstRel, mapOnSecondRelation);
+		
+		return skipRel;
+	}
 	
 	public static void main(String[] args) throws Exception {	
 		
@@ -108,13 +117,9 @@ public class LoadEquivalentIntraRelations {
 		KB freebase = new KB("freebase", "http://s6.adam.uvsq.fr:8892/sparql", "http://rdf.freebase.com");
 		
 		KB kb=freebase;
-		String fileWithQuivalences=dir+kb.name+"/"+kb.name+"_"+kb.name+"_equi_ee.txt";
-		abortIfFileDoesNotExist(fileWithQuivalences);
+		HashSet<String>   skipRel=getSkipRelations(kb, dir);
+		System.out.println("I can eliminate "+skipRel.size()+"   relations/cases ");
 		
-		HashMap<String, ArrayList<ComputingIntraCWA.AlignmentCWA>> mapOnFirstRel= new HashMap<String, ArrayList<ComputingIntraCWA.AlignmentCWA>> (); 
-		HashMap<String, ArrayList<ComputingIntraCWA.AlignmentCWA>> mapOnSecondRelation = new HashMap<String, ArrayList<ComputingIntraCWA.AlignmentCWA>> ();
-		loadEquivalentRelations(mapOnFirstRel, mapOnSecondRelation, fileWithQuivalences, true);
-		getRelationNamesThatCanBeSkipedSinceEquivalent(mapOnFirstRel, mapOnSecondRelation);
 	}
 
 	
