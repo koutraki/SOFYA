@@ -119,9 +119,15 @@ public class ComputingIntraCWA {
 			
 		public AlignmentCWA(Relation rS, Relation rT, int sharedXY){
 			this.sharedXY=sharedXY;
-			this.rS= (rS.tupleNo<rT.tupleNo)?rS:rT;
-			this.rT=(rS.tupleNo<rT.tupleNo)?rT:rS;
+			this.rS= (rS.tupleNo<=rT.tupleNo)?rS:rT;
+			this.rT=(rS.tupleNo<=rT.tupleNo)?rT:rS;
 		}
+		
+		@Override
+		public final String toString(){
+			return  rS + "  " + rT+ " \t "+ sharedXY + " \t " + ((int) rS.tupleNo)+ " \t " +((int) rT.tupleNo)+ " \t " +df.format(((double)sharedXY)/rS.tupleNo)+ " \t " +df.format(((double)sharedXY)/rT.tupleNo);
+}
+
 		
 		public final String toStringAll(){
 					return  rS + "  " + rT+ " \t "+ sharedXY + " \t " + ((int) rS.tupleNo)+ " \t " +((int) rT.tupleNo)+ " \t " +df.format(((double)sharedXY)/rS.tupleNo)+ " \t " +df.format(((double)sharedXY)/rT.tupleNo);
