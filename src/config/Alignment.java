@@ -42,11 +42,11 @@ public class Alignment {
 	}
 	
 	public  String toStringAll(){
-				return  rS + " \t  " + rT+ "\t"+ sharedXY+ "\t"+ originalSamples+ "\t"+ pcaDenominator+ "\t"+ df.format(pca)+ "\t" +df.format(cwa);
+				return  rS + "   " + rT+ "  "+ sharedXY+ "  "+ originalSamples+ "  "+ pcaDenominator+ "  "+ df.format(pca)+ "  " +df.format(cwa);
 	}
 	
 	public final String toStringWithShared(){
-		return  rS + " \t " + rT+ "\t"+ sharedXY;
+		return  rS + "  " + rT+ "  "+ sharedXY;
 
   }
 	

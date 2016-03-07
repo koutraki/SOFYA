@@ -151,6 +151,10 @@ public class GetSelfOvelappingRels {
 		 
 		 int offset=0;
 		
+		 
+		// http://dbpedia.org/ontology/careerStation
+			 
+			 
 		 while(offset<rS.tupleNo){
 			 
 			 String querystr="select ?r ?d  (COUNT(*) as ?n)   where { ";
@@ -240,7 +244,7 @@ public class GetSelfOvelappingRels {
 		
 		int bulkSize=2000;
 		try{
-					selfAlign(dir, tmpDir, freebase, (args.length==0)?null:args[0], bulkSize);
+					selfAlign(dir, tmpDir, dbpedia, (args.length==0)?null:args[0], bulkSize);
 		}  catch(Exception e ){
 			  System.err.println(e.getMessage());
 			  e.printStackTrace();

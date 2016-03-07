@@ -3,11 +3,11 @@ package compare;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map.Entry;
@@ -16,6 +16,7 @@ import config.Alignment;
 import gold.GetOvelappingRels;
 import gold.KB;
 import gold.Relation;
+import preprocessing.ComputingPCAandCWA.AlignmentPCA_CWA;
 
 public class CompareWithParis {
 	
@@ -187,8 +188,6 @@ public class CompareWithParis {
 			
 		}
 		
-
-		
 		for(Entry<Relation, ArrayList<AlignmentWithComments>> e: partionBasedOnTarget.entrySet()){
 			ArrayList<AlignmentWithComments> onlyNewManualListForRT= e.getValue();
 			Collections.sort(onlyNewManualListForRT, new Alignment.Comp_Alignment_Shared_Based());
@@ -198,10 +197,8 @@ public class CompareWithParis {
 			}
 			System.out.println();
 		}
-		
-		
-		
 	}
+	
 	
 	
 	public static final class AlignmentWithComments extends Alignment{
@@ -220,7 +217,23 @@ public class CompareWithParis {
 			return super.toStringAll()+(isUndecided?" ? ":" ")+comment; 
 		}
 		
+		public final String toStringAll(KB source, KB target){
+			String shortRS=((rS.uri.startsWith(source.name+":"))?rS.uri: rS.uri.replaceFirst( source.resourcesDomain, source.name+":"))+(rS.isDirect?"":"-");
+			String shortRT=(rT.uri.startsWith(source.name+":"))?rT.uri: rT.uri.replaceFirst( target.resourcesDomain, target.name+":")+(rT.isDirect?"":"-");
+			
+			return shortRS+"                  "+shortRT+"  "+sharedXY+"  "+originalSamples+"  "+ "  "+ pcaDenominator+ "  "+ df.format(pca)+ "  " +df.format(cwa)+(isUndecided?" ? ":" ")+comment; 
+		}
+		
 	}
 	
 	
+	public static final class Comp_Alignment_Comp_Shared_Based implements Comparator<AlignmentWithComments> {
+		@Override
+		public int compare(AlignmentWithComments o1, AlignmentWithComments o2) {
+			 int diff=-(o1.sharedXY-o2.sharedXY);
+			 if(diff!=0) return diff;
+			 return -(o1.pcaDenominator-o2.pcaDenominator);
+		}
+
+	}
 }

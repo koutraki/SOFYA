@@ -16,97 +16,104 @@ import preprocessing.ComputingIntraCWA.AlignmentCWA;
 
 public class LoadEquivalentIntraRelations {
 	public static final String separatorSpace = "\\s+";
-
-	public static final void loadEquivalentRelations(HashMap<String, ArrayList<ComputingIntraCWA.AlignmentCWA>> mapOnFirstRel, HashMap<String, ArrayList<ComputingIntraCWA.AlignmentCWA>> mapOnSecondRelation, String file, boolean skipFirstLine) throws Exception {
+	
+	/******************************************************************************/
+	/*** Load Pairs ***/
+	/*****************************************************************************/
+     public static final  ArrayList<EquivPair>  loadEquivalentRelations(String file, boolean skipFirstLine) throws Exception {
+    	    ArrayList<EquivPair> pairs=new ArrayList<EquivPair> ();
 		BufferedReader pairReader = new BufferedReader(new InputStreamReader(new FileInputStream(file), "UTF8"));
-		if (skipFirstLine)
-			pairReader.readLine();
+		if (skipFirstLine) pairReader.readLine();
 
 		String line = null;
 		while ((line = pairReader.readLine()) != null) {
-			if (line.isEmpty())
-				continue;
+			line=line.trim();
+			if (line.isEmpty())  continue;
 			String[] e = line.split(separatorSpace);
 			
-			Relation rS=getRelationFromStringDescr(e[0].trim());
-			rS.tupleNo=Integer.valueOf(e[3]);
+			Relation rLeft=getRelationFromStringDescr(e[0].trim());
+			rLeft.tupleNo=Integer.valueOf(e[3]);
 			
-			Relation rT=getRelationFromStringDescr(e[1].trim());
-			rT.tupleNo=Integer.valueOf(e[4]);
+			Relation rRight=getRelationFromStringDescr(e[1].trim());
+			rRight.tupleNo=Integer.valueOf(e[4]);
 			
-			if(rT.uri.equals(rS.uri)) {
-				System.out.println("Symetric relations :   "+line);
+			if(rLeft.uri.equals(rRight.uri)) {
+				System.err.println("Symetric relations :   "+line);
+				continue;
 			}
 		
-			AlignmentCWA align=new AlignmentCWA(rS, rT, Integer.valueOf(e[2]));
-
-			addToList(mapOnFirstRel, rS.uri, align);
-			addToList(mapOnSecondRelation,rT.uri, align);
+			EquivPair pair=new EquivPair(rLeft, rRight);
+			
+		     pairs.add(pair);
 				
 		}
 		pairReader.close();
-		return;
+		return pairs;
 	}
 
-	public static void addToList(HashMap<String, ArrayList<ComputingIntraCWA.AlignmentCWA>> map, String key, AlignmentCWA a){
-		ArrayList<ComputingIntraCWA.AlignmentCWA> list=map.get(key);
-		if (list==null) {
-			list= new ArrayList<ComputingIntraCWA.AlignmentCWA>();
-			map.put(key, list);
-		}
-		list.add(a);
-	}
+     
+     
+     public static final void getLeftRightSet(HashSet<String> left, HashSet<String> right, ArrayList<EquivPair> pairs){
+    	     for(EquivPair p: pairs){
+    	    	 	 left.add(p.leftHand.uri);
+    	    	 	 right.add(p.rightHand.uri);
+    	     }
+     }
+     
+     public static final Relation getRelationFromStringDescr(String s)throws Exception{
+ 		
+ 		String uri=(s.endsWith("-"))?s.substring(0,s.length()-1): s;
+ 		Relation r=(s.endsWith("-"))?new Relation(uri, false):new Relation(uri, true);
+ 		return r;	
+ 	}
+ 	
+ 	
+ 	public static final boolean doesFileExist(String pathToFile){
+ 		File f=new File(pathToFile);
+ 		if(!f.exists()) {
+ 			System.err.println("  File does not exit "+pathToFile);
+ 			return false;
+ 		}else {
+ 			return true;
+ 		}
+ 	}
 	
 	
-	/** this function returns the names of the target relations that do not appeat as source relations **/
-	public static final HashSet<String>  getRelationNamesThatCanBeSkipedSinceEquivalent(HashMap<String, ArrayList<ComputingIntraCWA.AlignmentCWA>> mapOnFirstRel, HashMap<String, ArrayList<ComputingIntraCWA.AlignmentCWA>> mapOnSecondRelation) throws Exception {
-	    HashSet<String> relationsCanCanBeSkipped=new HashSet<String>();
-		
-		Iterator<String> targetRelations=mapOnSecondRelation.keySet().iterator();
-		
-		while(targetRelations.hasNext()){
-			String target=targetRelations.next();
-			
-			if(mapOnFirstRel.containsKey(target)){
-				System.out.println("Target which appears as source: "+target+"     tupleNo="+((int)mapOnFirstRel.get(target).get(0).rS.tupleNo));
-			}
-			else {
-				relationsCanCanBeSkipped.add(target);
-			}
-		}
-		return relationsCanCanBeSkipped;
-	}
-	
-	public static final Relation getRelationFromStringDescr(String s)throws Exception{
-		
-		String uri=(s.endsWith("-"))?s.substring(0,s.length()-1): s;
-		Relation r=(s.endsWith("-"))?new Relation(uri, false):new Relation(uri, true);
-		return r;	
-	}
-	
-	
-	public static final boolean doesFileExist(String pathToFile){
-		File f=new File(pathToFile);
-		if(!f.exists()) {
-			System.err.println("  File does not exit "+pathToFile);
-			return false;
-		}else {
-			return true;
-		}
-	}
 
+	/******************************************************************************/
+ 	/*** CLASS EQUIV PAIR  ***/
+ 	/*****************************************************************************/
+	public static final class EquivPair{
+		public final Relation leftHand;
+		public final Relation rightHand;
+		
+		public EquivPair(Relation leftHand, Relation rightHand){
+			this.leftHand=leftHand;
+			this.rightHand=rightHand;
+		}
+	}
+	
 	public static final HashSet<String>  getSkipRelations(KB kb, String rootDir) throws Exception{
 		String fileWithQuivalences=rootDir+kb.name+"/"+kb.name+"_"+kb.name+"_equi_ee.txt";
 		boolean exist=doesFileExist(fileWithQuivalences);
 		if(!exist) return new HashSet<String>  ();
 		
-		HashMap<String, ArrayList<ComputingIntraCWA.AlignmentCWA>> mapOnFirstRel= new HashMap<String, ArrayList<ComputingIntraCWA.AlignmentCWA>> (); 
-		HashMap<String, ArrayList<ComputingIntraCWA.AlignmentCWA>> mapOnSecondRelation = new HashMap<String, ArrayList<ComputingIntraCWA.AlignmentCWA>> ();
-		loadEquivalentRelations(mapOnFirstRel, mapOnSecondRelation, fileWithQuivalences, true);
-		HashSet<String>  skipRel=getRelationNamesThatCanBeSkipedSinceEquivalent(mapOnFirstRel, mapOnSecondRelation);
+			
+		ArrayList<EquivPair> pairs=loadEquivalentRelations(fileWithQuivalences, true);
 		
-		return skipRel;
+		HashSet<String> left=new HashSet<String>();
+		HashSet<String> right=new HashSet<String>();
+		getLeftRightSet(left, right, pairs);
+		
+		
+		Iterator<String> it=right.iterator();
+		while(it.hasNext()){
+			if(left.contains(it.next())) it.remove();
+		}
+
+		return right;
 	}
+	
 	
 	public static void main(String[] args) throws Exception {	
 		

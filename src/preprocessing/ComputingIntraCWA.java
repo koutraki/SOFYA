@@ -186,13 +186,13 @@ public class ComputingIntraCWA {
 		KB dbpedia = new KB("dbpedia",null, "http://dbpedia.org/ontology/");
 		KB freebase = new KB("freebase",null, "http://rdf.freebase.com/ns/");
 		
-		KB kb=freebase;
+		KB kb=dbpedia;
 		
 		String dir="/Users/adi/Dropbox/DBP/feb-sofya/";
 		String fileWithFunctionality = dir + kb.name + "/" + kb.name + "_functionality_ee.txt";
 		String fileWithAlignments=dir + kb.name + "/" + kb.name + "_"+ kb.name +"_align.txt";
 		String newFile=dir + kb.name + "/" + kb.name + "_"+ kb.name +"_align_CWA.txt";	
-		comptuteCWA(kb,  fileWithFunctionality, fileWithAlignments, newFile, 0.9);
-	}
+		comptuteCWA(kb,  fileWithFunctionality, fileWithAlignments, newFile, 0.0);
 	
+	}
 }

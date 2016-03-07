@@ -58,6 +58,11 @@ public class Relation {
 			return uri+((isDirect)?"":"-")+"  funct="+df.format(funct)+" invFunct="+df.format(invFunct)+" noTuples="+((int)tupleNo);
 		}
 		
+		public String toStringShort(KB kb){
+			String shortRS=((uri.startsWith(kb.name+":"))?uri: uri.replaceFirst( kb.resourcesDomain, kb.name+":"))+(isDirect?"":"-");	
+			return shortRS;
+		}
+		
 		public static final class RelationCompBasedOnTupleNo implements Comparator<Relation> {
 			@Override
 			public int compare(Relation o1, Relation o2) {

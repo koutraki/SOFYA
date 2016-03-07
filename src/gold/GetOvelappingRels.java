@@ -664,12 +664,10 @@ public class GetOvelappingRels {
 		public Alignment(int originalSamples){
 			this.originalSamples=originalSamples;
 		}
+	
 	}
 	
 	public static void main(String[] args) throws Exception {	
-		
-		
-	
 		
 		String dir ="feb-sofya/"; //"/Users/adi/Dropbox/DBP/feb-sofya/"; //"feb-sofya/";
 		String tmpDir = "tmpDir/"; //"/Users/adi/Dropbox/DBP/"; // "tmpDir/";  
