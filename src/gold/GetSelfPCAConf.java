@@ -13,7 +13,14 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map.Entry;
 
+import com.hp.hpl.jena.query.QuerySolution;
+import com.hp.hpl.jena.query.ResultSet;
+import com.hp.hpl.jena.rdf.model.RDFNode;
+import com.hp.hpl.jena.sparql.engine.http.QueryEngineHTTP;
+import com.hp.hpl.jena.sparql.pfunction.library.listIndex;
+import com.sun.java.swing.plaf.windows.resources.windows;
 import com.sun.xml.internal.ws.resources.SoapMessages;
 
 import gold.GetOvelappingRels.Alignment;
@@ -60,32 +67,45 @@ public class GetSelfPCAConf {
 	/**************************************************************************************************************/
 	public static final void getHashMapWithOverlap(String rootDir, String tmpDir, KB kb) throws Exception{
 	
-		String fileWithAlignments=rootDir+kb.name+"/"+kb.name+"_"+kb.name+"_align.txt";
+		String fileWithAlignments=rootDir+kb.name+"/"+kb.name+"_"+kb.name+"_shared.txt";
 		String fileWithRelations = rootDir+kb.name+"/"+ kb.name + "_functionality_ee.txt";
+		String fileWithResults=rootDir+kb.name+"/"+kb.name+"_"+kb.name+"_PCA_CWA.txt";
 		
 		HashMap<String, Relation> relations=loadRelationsFromFilesWithFunctionality( fileWithRelations, true, 0, 4, 5, 3);
 		
 		HashMap<Relation, HashMap<Relation, PartialAlignment>>   partialResults=read_results_overlap(fileWithAlignments, relations, kb);
 		
 		BufferedWriter writer = new BufferedWriter(
-				new OutputStreamWriter(new FileOutputStream(fileWithAlignments), "UTF-8"));
+				new OutputStreamWriter(new FileOutputStream(fileWithResults), "UTF-8"));
 	
 		String header="source target sharedXY originalXY pcaDenRelDirectCheckCounterpartForObject ";
 		System.out.println(header);
 		
 	
 		ArrayList<Relation> sortedRelations=new ArrayList<Relation>();
-		sortedRelations.addAll(relations.values());
+		sortedRelations.addAll(partialResults.keySet());
 		Collections.sort(sortedRelations, new Relation.RelationCompBasedOnTupleNo());
 		
-		String fileWithPairs=tmpDir+"self_pairs.txt";
+	
 		for (Relation rS : sortedRelations) {
 			
 			if(! partialResults.containsKey(rS)) continue;
 			HashMap<Relation, PartialAlignment> relationsAtOther=partialResults.get(rS);
 			if(relationsAtOther==null || relationsAtOther.keySet().isEmpty()) continue;
 			 
-			System.out.println("I process relation "+rS);
+			System.out.println("I process relation "+rS+" "+((int)rS.tupleNo));
+			
+			computePCAForRelationsInThisDirection(partialResults.get(rS), true, kb);
+			computePCAForRelationsInThisDirection(partialResults.get(rS), false, kb);
+			
+			for(PartialAlignment a: partialResults.get(rS).values()){
+				writer.write(a.toStringAll()+" \n");
+				writer.flush();
+				System.out.println(a.toStringAll());
+			}
+			
+			writer.write(" \n");
+			
 		}
 		writer.close();
 	}
@@ -104,27 +124,46 @@ public class GetSelfPCAConf {
 			
 			String rel1=e[0].trim();
 			rel1=(rel1.endsWith("-"))?rel1.substring(0, rel1.length()-1): rel1;
+			boolean dirR1=!(e[0].trim().endsWith("-"));
 			
 			String rel2=e[1].trim();
 			rel2=(rel2.endsWith("-"))?rel2.substring(0, rel2.length()-1): rel2;
+			boolean dirR2=!(e[1].trim().endsWith("-"));
 			
-			Relation r1=relations.get(rel1);
-			if(r1==null){
-				System.out.println(" Relation "+r1+" est inconnue ");
+		
+			if(relations.get(rel1)==null){
+				System.out.println(" Relation "+rel1+" est inconnue ");
 				System.exit(0);
 			}
+			Relation r1=new Relation(rel1, dirR1);
+			r1.tupleNo=relations.get(rel1).tupleNo;
 			
-			Relation r2=relations.get(rel2);
-			if(r2==null){
-				System.out.println(" Relation "+r2+" est inconnue ");
+		
+			if(relations.get(rel2)==null){
+				System.out.println(" Relation "+rel2+" est inconnue ");
 				System.exit(0);
 			}
+			Relation r2=new Relation(rel2, dirR2);
+			r2.tupleNo=relations.get(rel2).tupleNo;
 			
 			int shared = Integer.valueOf(e[2]);
 			
-			addToPartialResults(shared, r1, r2, partialResults);
-			addToPartialResults(shared, r1, r2, partialResults);
+			// the first relation for which the pca is computed should respect the direction the relations given in the map relations. In thi way we avoid duplicates or we avoid missing the results  
+			if(relations.get(r1)==null){
+				Relation r1p=new Relation(r1.uri, !r1.isDirect);
+				Relation r2p=new Relation(r2.uri, !r2.isDirect);
+				addToPartialResults(shared, r1p, r2p, partialResults);
+			}
+			else addToPartialResults(shared, r1, r2, partialResults);
 			
+			
+			if(relations.get(r2)==null){
+				Relation r1p=new Relation(r1.uri, !r1.isDirect);
+				Relation r2p=new Relation(r2.uri, !r2.isDirect);
+				addToPartialResults(shared, r2p, r1p, partialResults);
+			}
+			else addToPartialResults(shared, r2, r1, partialResults);
+
 		}
 		
 		pairReader.close();
@@ -146,6 +185,66 @@ public class GetSelfPCAConf {
 	
 	}
 	
+	public static final void  computePCAForRelationsInThisDirection(HashMap<Relation, PartialAlignment> map, boolean direction, KB kb){
+		 ArrayList<PartialAlignment> newList=new ArrayList<PartialAlignment>();
+		 for(PartialAlignment a: map.values()){
+			 if(a.rT.isDirect!=direction) continue;
+			 newList.add(a);
+		 }
+		
+		 //if(newList.isEmpty()) return;
+		
+		 HashMap<Relation,  Integer> denominator=new HashMap<Relation,  Integer> ();
+		 String querystr=   "select ?r   (COUNT(*) as ?n)   where {graph <" + kb.name + "> {\n";
+	     querystr+="  values ?r { \n";
+		 for(PartialAlignment a:newList){
+			 querystr+="      <"+a.rT.uri+"> \n";
+		 }
+		querystr+="   } \n";
+		querystr+=((newList.get(0).rS.isDirect)?"   ?x  <"+newList.get(0).rS.uri+">   ?y. ":"   ?y  <"+newList.get(0).rS.uri+">   ?x.  \n") ;
+	    querystr+="   FILTER EXISTS { "+((newList.get(0).rT.isDirect)?"   ?x  ?r   ?yo. ":"   ?yo  ?r   ?x.  ")+" } \n" ;
+		querystr+="}} group by ?r   ";
+
+		System.out.println("I evaluate query "+querystr);
+		
+		if(!newList.isEmpty()) return;
+			
+		try{
+			QueryEngineHTTP query = new QueryEngineHTTP(kb.endpoint, querystr);
+			query.setTimeout(100000000000l);
+			ResultSet rst = query.execSelect();
+			if (rst != null) {
+				while (rst.hasNext()) {
+					QuerySolution qs = rst.next();
+					String n= qs.get("?n").asLiteral().getString().trim();
+					int XYs=Integer.valueOf(n);
+					if(XYs==0) continue;
+					
+					RDFNode r = (RDFNode) qs.get("?r");
+			
+					Relation rT=new Relation(r.toString(), direction);
+					PartialAlignment a=map.get(rT);
+					if(a==null){
+						System.out.println("  Relation "+rT+"  should be in the map ");
+						System.exit(0);
+					}
+					
+					a.pcaDenominator=XYs;
+					a.pca=(double)a.sharedXY/a.pcaDenominator;
+					
+			
+				}
+			}
+	    System.out.print("*");
+			}catch(Exception e){
+				e.printStackTrace();
+				System.err.println(querystr);
+				System.exit(0);
+			}
+		
+		return;
+		
+	}
 	
 	public static final class PartialAlignment {
 
@@ -203,18 +302,15 @@ public class GetSelfPCAConf {
 		
 		}
 	
-	
-	
+
  public static void main(String[] args) throws Exception {	
-		
-		String dir ="/Users/adi/Dropbox/DBP/feb-sofya/"; //"feb-sofya/";  "/home/mary/Dropbox/feb-sofya/"; "/home/mary/Dropbox/feb-sofya/"; 
-		String tmpDir ="/Users/adi/Dropbox/DBP/"; //"tmpDir/"; //   "/home/mary/Dropbox/"; //"/Users/adi/Dropbox/DBP/"; 
+		String dir ="feb-sofya/"; //"/Users/adi/Dropbox/DBP/feb-sofya/";   "/home/mary/Dropbox/feb-sofya/"; "/home/mary/Dropbox/feb-sofya/"; 
+		String tmpDir ="tmpDir/";  //"/Users/adi/Dropbox/DBP/";     "/home/mary/Dropbox/"; //"/Users/adi/Dropbox/DBP/"; 
 
 		KB yago = new KB("yago", "http://s6.adam.uvsq.fr:8892/sparql", "http://yago-knowledge.org");
 		KB dbpedia = new KB("dbpedia", "http://s6.adam.uvsq.fr:8892/sparql", "http://dbpedia.org");
 		KB freebase = new KB("freebase", "http://s6.adam.uvsq.fr:8892/sparql", "http://rdf.freebase.com");
 		
-		int bulkSize=2000;
 		try{
 				getHashMapWithOverlap(dir, tmpDir, dbpedia);
 		}  catch(Exception e ){
@@ -222,10 +318,7 @@ public class GetSelfPCAConf {
 			  e.printStackTrace();
 		}
 		
-		
 		//nohup java -cp "./lib/*:sofya_gold_fbTodbpedia.jar" gold.GetOvelappingRels http://rdf.freebase.com/ns/location.location.people_born_here- &
-
-	
 	}
 	
 }

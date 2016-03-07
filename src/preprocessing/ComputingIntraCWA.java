@@ -58,9 +58,10 @@ public class ComputingIntraCWA {
 				int sharedXY=Integer.parseInt(e[2]);
 				AlignmentCWA align=new AlignmentCWA(rS, rT, sharedXY);
 				
-				 if(align.getDirectImplication()<thrs || align.getReverseImplication()<thrs) continue;
+				 if(align.getDirectImplication()<thrs && align.getReverseImplication()<thrs) continue;
 				
-				
+				 if(align.getDirectImplication()>= thrs && align.getReverseImplication()>= thrs) continue;
+					
 				/** insert the alignment **/
 				if(allAlignements.contains(align)) continue;
 				allAlignements.add(align);		
@@ -125,12 +126,12 @@ public class ComputingIntraCWA {
 		
 		@Override
 		public final String toString(){
-			return  rS + "  " + rT+ " \t "+ sharedXY + " \t " + ((int) rS.tupleNo)+ " \t " +((int) rT.tupleNo)+ " \t " +df.format(((double)sharedXY)/rS.tupleNo)+ " \t " +df.format(((double)sharedXY)/rT.tupleNo);
+			return  rS + "  " + rT+ "   "+ sharedXY + "  " + ((int) rS.tupleNo)+ "   " +((int) rT.tupleNo)+ "   " +df.format(((double)sharedXY)/rS.tupleNo)+ "   " +df.format(((double)sharedXY)/rT.tupleNo);
 }
 
 		
 		public final String toStringAll(){
-					return  rS + "  " + rT+ " \t "+ sharedXY + " \t " + ((int) rS.tupleNo)+ " \t " +((int) rT.tupleNo)+ " \t " +df.format(((double)sharedXY)/rS.tupleNo)+ " \t " +df.format(((double)sharedXY)/rT.tupleNo);
+					return  rS + "  " + rT+ "   "+ sharedXY + "   " + ((int) rS.tupleNo)+ "   " +((int) rT.tupleNo)+ "  " +df.format(((double)sharedXY)/rS.tupleNo)+ "  " +df.format(((double)sharedXY)/rT.tupleNo);
 		}
 		
 		public double getDirectImplication(){
@@ -169,15 +170,19 @@ public class ComputingIntraCWA {
 
 		@Override
 		public int compare(AlignmentCWA o1, AlignmentCWA o2) {
+			
+			
 			int directImplication = (int)(-(o1.getDirectImplication()-o2.getDirectImplication())*100000);
 			if(directImplication!=0) return directImplication;
+			
+			int tupleNoDiff=-(int)(o1.rS.tupleNo-o2.rS.tupleNo);
+			if(tupleNoDiff!=0) return tupleNoDiff;
+			 
 			int inverseImplication =(int) ((-(o1.getReverseImplication()-o2.getReverseImplication())*100000));
 			if(inverseImplication!=0) return  inverseImplication;
-			return (int)(o1.rS.tupleNo-o2.rS.tupleNo);
+			
+			return (int)(o1.rT.tupleNo-o2.rT.tupleNo);
 		}
-
-		
-		
 	}
 	
 	public static void main(String[] args) throws Exception {
@@ -192,7 +197,7 @@ public class ComputingIntraCWA {
 		String fileWithFunctionality = dir + kb.name + "/" + kb.name + "_functionality_ee.txt";
 		String fileWithAlignments=dir + kb.name + "/" + kb.name + "_"+ kb.name +"_align.txt";
 		String newFile=dir + kb.name + "/" + kb.name + "_"+ kb.name +"_align_CWA.txt";	
-		comptuteCWA(kb,  fileWithFunctionality, fileWithAlignments, newFile, 0.0);
+		comptuteCWA(kb,  fileWithFunctionality, fileWithAlignments, newFile, 0.95);
 	
 	}
 }
