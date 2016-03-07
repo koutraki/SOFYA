@@ -54,7 +54,7 @@ public class GetSelfPCAConf {
 	}
 	
 	///isql-v 1111 dba dba exec="SPARQL select ?r ?d  (COUNT(*) as ?n)   where {  graph <dbpedia> { { select ?x ?y where { ?y <http://dbpedia.org/ontology/country> ?x.  }  order by ?x ?y     }  {select  ?x ?r ?y ?d where {  values  ?d {  'indirect'  }  ?y <http://dbpedia.org/ontology/isPartOf> ?x. }} }} group by ?r ?d" > out.txt
-	
+	  
 	/*************************************************************************************************************/
 	/**  SPEED-UP PROCESSING BY GETTING RESULT FOR OVERLAP**/
 	/**************************************************************************************************************/
