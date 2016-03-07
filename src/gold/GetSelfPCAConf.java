@@ -59,8 +59,7 @@ public class GetSelfPCAConf {
 	/**  SPEED-UP PROCESSING BY GETTING RESULT FOR OVERLAP**/
 	/**************************************************************************************************************/
 	public static final void getHashMapWithOverlap(String rootDir, String tmpDir, KB kb) throws Exception{
-		int tuplesPerQuery = 200; // changed!!!
-		
+	
 		String fileWithAlignments=rootDir+kb.name+"/"+kb.name+"_"+kb.name+"_align.txt";
 		String fileWithRelations = rootDir+kb.name+"/"+ kb.name + "_functionality_ee.txt";
 		
@@ -74,8 +73,7 @@ public class GetSelfPCAConf {
 		String header="source target sharedXY originalXY pcaDenRelDirectCheckCounterpartForObject ";
 		System.out.println(header);
 		
-		
-		
+	
 		ArrayList<Relation> sortedRelations=new ArrayList<Relation>();
 		sortedRelations.addAll(relations.values());
 		Collections.sort(sortedRelations, new Relation.RelationCompBasedOnTupleNo());
