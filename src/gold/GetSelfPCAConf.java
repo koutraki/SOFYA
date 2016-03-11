@@ -131,38 +131,39 @@ public class GetSelfPCAConf {
 			boolean dirR2=!(e[1].trim().endsWith("-"));
 			
 		
-			if(relations.get(rel1)==null){
-				System.out.println(" Relation "+rel1+" est inconnue ");
+			if(relations.get(rel1)==null || relations.get(rel2)==null){
+				System.out.println(" Relation "+rel1+"   or  "+rel2+" est inconnue ");
 				System.exit(0);
 			}
-			Relation r1=new Relation(rel1, dirR1);
-			r1.tupleNo=relations.get(rel1).tupleNo;
-			
-		
-			if(relations.get(rel2)==null){
-				System.out.println(" Relation "+rel2+" est inconnue ");
-				System.exit(0);
-			}
-			Relation r2=new Relation(rel2, dirR2);
-			r2.tupleNo=relations.get(rel2).tupleNo;
 			
 			int shared = Integer.valueOf(e[2]);
 			
-			// the first relation for which the pca is computed should respect the direction the relations given in the map relations. In thi way we avoid duplicates or we avoid missing the results  
-			if(relations.get(r1)==null){
-				Relation r1p=new Relation(r1.uri, !r1.isDirect);
-				Relation r2p=new Relation(r2.uri, !r2.isDirect);
-				addToPartialResults(shared, r1p, r2p, partialResults);
+			Relation r1=relations.get(rel1);
+		    Relation r2;
+			if(r1.isDirect!=dirR1){
+			    r2=new Relation(rel2, !dirR2);
+				r2.tupleNo=relations.get(rel2).tupleNo;
 			}
-			else addToPartialResults(shared, r1, r2, partialResults);
-			
-			
-			if(relations.get(r2)==null){
-				Relation r1p=new Relation(r1.uri, !r1.isDirect);
-				Relation r2p=new Relation(r2.uri, !r2.isDirect);
-				addToPartialResults(shared, r2p, r1p, partialResults);
+			else {
+				   r2=new Relation(rel2, dirR2);
+				   r2.tupleNo=relations.get(rel2).tupleNo;
 			}
-			else addToPartialResults(shared, r2, r1, partialResults);
+			
+			addToPartialResults(shared, r1, r2, partialResults);	
+			
+			r2=relations.get(rel2);
+			if(r2.isDirect!=dirR2){
+				r1=new Relation(rel1, !dirR1);
+				r1.tupleNo=relations.get(rel1).tupleNo;
+			}
+			else {
+				r1=new Relation(rel1, dirR1);
+				r1.tupleNo=relations.get(rel1).tupleNo;
+			}
+			
+			addToPartialResults(shared, r2, r1, partialResults);		
+	
+
 
 		}
 		
@@ -179,7 +180,7 @@ public class GetSelfPCAConf {
 		
 		PartialAlignment a=alignmentsForR1.get(r2);
 		if(a==null){
-			 a=new PartialAlignment(r1, r2, shared, (int)r1.tupleNo);
+			 a=new PartialAlignment(r1, r2, shared);
 			 alignmentsForR1.put(r2, a);
 		}
 	
@@ -192,7 +193,7 @@ public class GetSelfPCAConf {
 			 newList.add(a);
 		 }
 		
-		 //if(newList.isEmpty()) return;
+		 if(newList.isEmpty()) return;
 		
 		 HashMap<Relation,  Integer> denominator=new HashMap<Relation,  Integer> ();
 		 String querystr=   "select ?r   (COUNT(*) as ?n)   where {graph <" + kb.name + "> {\n";
@@ -207,7 +208,7 @@ public class GetSelfPCAConf {
 
 		System.out.println("I evaluate query "+querystr);
 		
-		if(!newList.isEmpty()) return;
+		//if(!newList.isEmpty()) return;
 			
 		try{
 			QueryEngineHTTP query = new QueryEngineHTTP(kb.endpoint, querystr);
@@ -255,21 +256,19 @@ public class GetSelfPCAConf {
 		
 		
 		public final int sharedXY;
-		public final int originalSamples;
 		public int pcaDenominator;
 		
 		public double pca;
 		public final double cwa;
 
 		
-		public PartialAlignment(Relation rS, Relation rT, int sharedXY, int originalSamples){
+		public PartialAlignment(Relation rS, Relation rT, int sharedXY){
 			this.sharedXY=sharedXY;
-			this.originalSamples=originalSamples;
 			
 			this.rS=rS;
 			this.rT=rT;
 			
-			this.cwa=((double)sharedXY)/originalSamples;
+			this.cwa=((double)sharedXY)/rS.tupleNo;
 			
 		}
 		
@@ -279,7 +278,7 @@ public class GetSelfPCAConf {
 		}
 		
 		public  String toStringAll(){
-					return  rS + "   " + rT+ "  "+ sharedXY+ "  "+ originalSamples+ "  "+ pcaDenominator+ "  "+ df.format(pca)+ "  " +df.format(cwa);
+					return  rS + "   " + rT+ "  "+ sharedXY+ "  "+ rS.tupleNo+ "  "+ pcaDenominator+ "  "+ df.format(pca)+ "  " +df.format(cwa);
 		}
 		
 		public final String toStringWithShared(){
