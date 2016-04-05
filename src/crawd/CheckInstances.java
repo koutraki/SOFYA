@@ -17,7 +17,7 @@ public class CheckInstances {
 		   BufferedWriter writer = new BufferedWriter(
 					new OutputStreamWriter(new FileOutputStream(fileWithResults), "UTF-8"));
 		   
-		   /***
+		   
 		   writer.write("Counter Examples (common x):   \n"+rS+" \t "+rT+"\n");
 		   writer.write("x  \t y_rS  \t y_rT ");
 		   ArrayList<TripleResult>  triples=getCounterExamples(rS, rT, kb);
@@ -35,7 +35,7 @@ public class CheckInstances {
 			   writer.write(r.toString()+"\n");
 		   }
 		   writer.write("\n\n\n");
-          **/
+          
 		   
 		   
 		   writer.write("OVERLAP:   \n"+rS+"\t"+rT+"\n");
