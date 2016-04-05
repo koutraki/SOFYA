@@ -33,6 +33,11 @@ public class Relation {
 			this.isDirect=isDirect;
 		}
 		
+		public  Relation(String uri, boolean isDirect, int tupleNo) throws Exception {
+			this.uri=uri;
+			this.isDirect=isDirect;
+			this.tupleNo=tupleNo;
+		}
 		
 		public static final Relation getRelationFromStringDesc(String name) throws Exception{
 			return name.endsWith("-")?new Relation(name.substring(0, name.length()-1), false): new Relation(name, true);
@@ -74,6 +79,18 @@ public class Relation {
 			@Override
 			public int compare(Relation o1, Relation o2) {
 				return (int) (-(o1.tupleNo-o2.tupleNo));
+			}
+		}
+		
+		public static final class RelationCompStringBased implements Comparator<Relation> {
+			@Override
+			public int compare(Relation o1, Relation o2) {
+				int v=o1.uri.compareTo(o2.uri);
+				if(v!=0) return v;
+				
+				if(o1.isDirect) return -1;
+				if(!o1.isDirect) return 1;
+				return 0;
 			}
 		}
 }
