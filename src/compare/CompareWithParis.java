@@ -16,7 +16,7 @@ import config.Alignment;
 import gold.GetOvelappingRels;
 import gold.KB;
 import gold.Relation;
-import preprocessing.ComputingPCAandCWA.AlignmentPCA_CWA;
+
 
 public class CompareWithParis {
 	
@@ -217,11 +217,13 @@ public class CompareWithParis {
 			return super.toStringAll()+(isUndecided?" ? ":" ")+comment; 
 		}
 		
+
+		
 		public final String toStringAll(KB source, KB target){
 			String shortRS=((rS.uri.startsWith(source.name+":"))?rS.uri: rS.uri.replaceFirst( source.resourcesDomain, source.name+":"))+(rS.isDirect?"":"-");
 			String shortRT=(rT.uri.startsWith(source.name+":"))?rT.uri: rT.uri.replaceFirst( target.resourcesDomain, target.name+":")+(rT.isDirect?"":"-");
 			
-			return shortRS+"                  "+shortRT+"  "+sharedXY+"  "+originalSamples+"  "+ "  "+ pcaDenominator+ "  "+ df.format(pca)+ "  " +df.format(cwa)+(isUndecided?" ? ":" ")+comment; 
+			return shortRS+"                  "+shortRT+"  "+sharedXY+"  "+originalSamples+"  "+ "  "+ pcaDenominator+ "  "+ df.format(pca)+ "     " +df.format(cwa)+(isUndecided?" ? ":" ")+comment; 
 		}
 		
 	}
